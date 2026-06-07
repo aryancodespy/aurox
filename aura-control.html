@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin Dashboard | Aurox</title>
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet" />
+    <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet" />
     <meta
       name="description"
       content="Manage the Aurox store, products, inventory, categories, shipping, and orders."
@@ -157,8 +159,9 @@
                   <div>
                     <label for="product-status">Status</label>
                     <select id="product-status" data-product-field="status">
+                      <option value="draft">Draft</option>
                       <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
+                      <option value="out_of_stock">Out of Stock</option>
                       <option value="archived">Archived</option>
                     </select>
                   </div>
@@ -177,6 +180,22 @@
                   <div>
                     <label for="product-price">Price</label>
                     <input id="product-price" type="number" min="0" data-product-field="price" />
+                  </div>
+                  <div>
+                    <label for="product-featured">Homepage Featured</label>
+                    <select id="product-featured" data-product-field="featured">
+                      <option value="false">No</option>
+                      <option value="true">Yes</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="product-badges">Product Badges</label>
+                    <select id="product-badges" multiple size="4" data-product-field="badges">
+                      <option value="New">New</option>
+                      <option value="Best Seller">Best Seller</option>
+                      <option value="Limited Stock">Limited Stock</option>
+                      <option value="Coming Soon">Coming Soon</option>
+                    </select>
                   </div>
                   <div class="full-width">
                     <label for="product-short-description">Short Description</label>
@@ -232,6 +251,10 @@
                       <input id="product-image" type="text" data-product-field="image" placeholder="https://..." />
                     </div>
                     <div class="full-width">
+                      <label for="product-gallery">Additional Gallery Image URLs</label>
+                      <textarea id="product-gallery" rows="4" data-product-field="gallery" placeholder="One image URL per line"></textarea>
+                    </div>
+                    <div class="full-width">
                       <label for="product-image-upload">Upload Image</label>
                       <input id="product-image-upload" type="file" accept="image/*" data-product-image-upload />
                     </div>
@@ -242,12 +265,18 @@
                       <button class="button button-light" type="button" data-remove-image>
                         Remove Image
                       </button>
+                      <button class="button button-light" type="button" data-upload-gallery-image>
+                        Add Gallery Image
+                      </button>
                     </div>
                     <div class="full-width">
                       <p class="field-error admin-product-error" data-admin-image-error></p>
                       <div class="admin-image-preview" data-admin-image-preview>
                         <span>No image selected yet.</span>
                       </div>
+                    </div>
+                    <div class="full-width">
+                      <div class="admin-gallery-list" data-admin-gallery-list></div>
                     </div>
                   </div>
                 </div>
@@ -404,12 +433,31 @@
             <div class="panel">
               <div class="admin-toolbar">
                 <div>
+                  <p class="eyebrow">Admin Activity</p>
+                  <h2>Recent audit log</h2>
+                </div>
+              </div>
+
+              <div class="admin-orders" data-admin-logs></div>
+            </div>
+
+            <div class="panel">
+              <div class="admin-toolbar">
+                <div>
                   <p class="eyebrow">Analytics</p>
                   <h2>Simple store performance snapshot</h2>
                 </div>
               </div>
 
               <div class="admin-analytics-grid" data-admin-analytics></div>
+              <div class="admin-ai-roadmap">
+                <p class="eyebrow">Future AI Assistant</p>
+                <div class="admin-kpi-list">
+                  <div class="admin-kpi-line"><span>Product descriptions</span><strong>Ready for future integration</strong></div>
+                  <div class="admin-kpi-line"><span>SEO metadata</span><strong>Ready for future integration</strong></div>
+                  <div class="admin-kpi-line"><span>Social captions</span><strong>Ready for future integration</strong></div>
+                </div>
+              </div>
             </div>
           </div>
         </section>

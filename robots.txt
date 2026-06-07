@@ -1,0 +1,28 @@
+User-agent: *
+Disallow: /admin.html
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /admin-dashboard/
+Disallow: /aura-control.html
+Disallow: /js/admin.js
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: CCBot
+Disallow: /

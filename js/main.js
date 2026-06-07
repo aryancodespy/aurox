@@ -66,6 +66,9 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
         highlights: product.highlights || [],
         seoTitle: product.seoTitle || "",
         seoDescription: product.seoDescription || "",
+        featured: Boolean(product.featured),
+        badges: product.badges || [],
+        galleryImages: product.galleryImages || [product.image],
         popularity: product.popularity || 80,
         isNew: Boolean(product.isNew),
         status: product.status || "active",
@@ -141,8 +144,15 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
 
   function getProducts() {
     return productsCache.filter(function (product) {
-      return product.active !== false && product.status !== "archived";
+      return product.active !== false && ["active", "out_of_stock"].indexOf(product.status) > -1;
     });
+  }
+
+  function isProductPurchasable(product) {
+    if (!product) {
+      return false;
+    }
+    return product.status === "active" && getTotalStock(product.id) > 0;
   }
 
   function getCategories() {
@@ -191,6 +201,21 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
     return { url: "", storagePath: "" };
   }
 
+  function getGalleryImages(product) {
+    var images = Array.isArray(product.product_images)
+      ? product.product_images.slice()
+      : [];
+
+    images.sort(function (first, second) {
+      return Number(Boolean(second.is_primary)) - Number(Boolean(first.is_primary));
+    });
+    return images;
+  }
+
+  function getProductBadges(product) {
+    return Array.isArray(product.badges) ? product.badges : [];
+  }
+
   async function loadProductsFromSupabase() {
     if (!supabaseReady || !supabase) {
       return getDefaultCatalog();
@@ -198,7 +223,7 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
 
     var productResponse = await supabase
       .from("products")
-      .select("id, name, slug, color, material, price, short_description, description, product_highlights, seo_title, seo_description, status, is_active, created_at, categories(name, slug), product_images(image_url, is_primary, storage_path)")
+      .select("id, name, slug, color, material, price, short_description, description, badges, product_highlights, seo_title, seo_description, status, is_featured, is_active, created_at, categories(name, slug), product_images(id, image_url, is_primary, storage_path)")
       .order("created_at", { ascending: false });
 
     if (productResponse.error || !productResponse.data) {
@@ -206,7 +231,7 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
     }
 
     if (!productResponse.data.length) {
-      return [];
+      return getDefaultCatalog();
     }
 
     var productIds = productResponse.data.map(function (product) {
@@ -224,6 +249,7 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
         ? product.categories.name
         : "Unisex T-Shirt";
       var image = getPrimaryImage(product);
+      var galleryImages = getGalleryImages(product);
       return {
         id: product.id,
         slug: product.slug,
@@ -241,9 +267,15 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
         alt: product.name + " " + String(product.color || "").toLowerCase() + " Aurox product image",
         shortDescription: product.short_description || product.description,
         description: product.description,
+        badges: Array.isArray(product.badges) ? product.badges : [],
         highlights: Array.isArray(product.product_highlights) ? product.product_highlights : [],
         seoTitle: product.seo_title || "",
         seoDescription: product.seo_description || "",
+        featured: Boolean(product.is_featured),
+        galleryImages: galleryImages.map(function (item) {
+          return item.image_url;
+        }),
+        product_images: galleryImages,
         popularity: 80,
         isNew: false,
         status: product.status || "active",
@@ -372,6 +404,10 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
   }
 
   function getStockMessage(productId, size) {
+    var product = getProductById(productId);
+    if (product && product.status === "out_of_stock") {
+      return "Out of stock";
+    }
     if (typeof size === "string") {
       var sizeStock = getSizeStock(productId, size);
       if (sizeStock <= 0) {
@@ -432,6 +468,7 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
       customer_name: orderPayload.customerName,
       phone: orderPayload.phone,
       address: orderPayload.address,
+      order_notes: orderPayload.orderNotes || "",
       division: orderPayload.deliveryDivision,
       delivery_location: orderPayload.deliveryLocation,
       products: orderPayload.items.map(function (item) { return item.productName; }).join(", "),
@@ -548,6 +585,7 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
     var phoneField = document.querySelector("#checkout-phone");
     var emailField = document.querySelector("#checkout-email");
     var addressField = document.querySelector("#address");
+    var orderNotesField = document.querySelector("#order-notes");
     var divisionField = document.querySelector("#delivery-division");
     var deliveryLocation = getSelectedDeliveryLocation();
     var mismatchState = updateDeliveryConfirmationState();
@@ -592,6 +630,7 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
       phone: phoneField.value.trim(),
       email: emailField ? emailField.value.trim() : "",
       address: addressField.value.trim(),
+      orderNotes: orderNotesField ? orderNotesField.value.trim() : "",
       deliveryDivision: divisionField.value,
       deliveryLocation: deliveryLocation
     };
@@ -682,6 +721,12 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
     var product = getProductById(productId);
     var itemSize = size || (product ? product.sizes[0] : "M");
     var itemQuantity = Math.max(1, Number(quantity) || 1);
+
+    if (!isProductPurchasable(product)) {
+      showToast("Out of stock");
+      return false;
+    }
+
     var availableStock = getSizeStock(productId, itemSize);
 
     if (availableStock <= 0) {
@@ -809,21 +854,33 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
     }
   }
 
+  function getPrimaryBadgeMarkup(product) {
+    var badges = getProductBadges(product);
+    var totalStock = getTotalStock(product.id);
+
+    if (totalStock <= 0 || product.status === "out_of_stock") {
+      return '<span class="product-badge product-badge-out">Out of Stock</span>';
+    }
+    if (badges.length) {
+      return '<span class="product-badge">' + badges[0] + "</span>";
+    }
+    if (product.isNew) {
+      return '<span class="product-badge">New</span>';
+    }
+    return "";
+  }
+
   function createProductCard(product) {
     var totalStock = getTotalStock(product.id);
     var stockMessage = getStockMessage(product.id);
     var stockClass = totalStock <= 0 ? " stock-note-out" : "";
+    var badgeMarkup = getPrimaryBadgeMarkup(product);
+    var canPurchase = isProductPurchasable(product);
 
     return (
       '<article class="product-card">' +
         '<div class="product-card-image">' +
-          (
-            totalStock <= 0
-              ? '<span class="product-badge product-badge-out">Out of Stock</span>'
-              : product.isNew
-                ? '<span class="product-badge">New Drop</span>'
-                : ""
-          ) +
+          badgeMarkup +
           '<button class="product-visual-button" type="button" data-view-product="' + product.id + '" aria-label="View details for ' + product.name + '">' +
             '<img src="' + product.image + '" alt="' + product.alt + '">' +
           "</button>" +
@@ -841,7 +898,7 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
             '<button class="button button-light" type="button" data-view-product="' + product.id + '">View Product</button>' +
             '<button class="size-guide-link" type="button" data-size-guide>Size Guide</button>' +
           "</div>" +
-          '<button class="button button-dark" type="button" data-add-to-cart="' + product.id + '"' + (totalStock <= 0 ? " disabled" : "") + ">Add to Cart</button>" +
+          '<button class="button button-dark" type="button" data-add-to-cart="' + product.id + '"' + (canPurchase ? "" : " disabled") + ">Add to Cart</button>" +
         "</div>" +
       "</article>"
     );
@@ -931,7 +988,7 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
       '<div class="product-modal-dialog panel" role="dialog" aria-modal="true" aria-labelledby="product-modal-title">' +
         '<button class="product-modal-close" type="button" aria-label="Close product details" data-close-product-modal>X</button>' +
         '<div class="product-modal-layout">' +
-          '<div class="product-modal-media"><img src="" alt="" data-modal-image></div>' +
+          '<div><div class="product-modal-media"><img src="" alt="" data-modal-image></div><div class="product-modal-thumbs" data-modal-thumbs></div></div>' +
           '<div class="product-modal-copy">' +
             '<p class="eyebrow">Aurox Product</p>' +
             '<h2 id="product-modal-title" data-modal-name></h2>' +
@@ -977,12 +1034,13 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
     var selectedSize = sizeSelect.value;
     var selectedStock = getSizeStock(productId, selectedSize);
     var nextQuantity = Math.max(1, Number(quantityInput.value) || 1);
+    var product = getProductById(productId);
 
     stockText.textContent = getStockMessage(productId, selectedSize);
     stockText.className = "modal-stock-text" + (selectedStock <= 0 ? " modal-stock-out" : "");
     quantityInput.max = Math.max(1, selectedStock);
     quantityInput.value = Math.min(nextQuantity, Math.max(1, selectedStock || 1));
-    addButton.disabled = selectedStock <= 0;
+    addButton.disabled = selectedStock <= 0 || !isProductPurchasable(product);
   }
 
   function openProductModal(productId) {
@@ -1001,12 +1059,34 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
     modal.querySelector("[data-modal-color]").textContent = product.color;
     modal.querySelector("[data-modal-sizes]").textContent = product.sizes.join(", ");
     modal.querySelector("[data-modal-description]").textContent = product.description;
+    var thumbsNode = modal.querySelector("[data-modal-thumbs]");
+    var gallery = product.galleryImages && product.galleryImages.length
+      ? product.galleryImages
+      : [product.image];
+
+    thumbsNode.innerHTML = gallery.map(function (imageUrl, index) {
+      return (
+        '<button class="product-modal-thumb' + (index === 0 ? " is-active" : "") + '" type="button" data-modal-thumb="' + imageUrl + '">' +
+          '<img src="' + imageUrl + '" alt="' + product.alt + '">' +
+        "</button>"
+      );
+    }).join("");
+
+    thumbsNode.querySelectorAll("[data-modal-thumb]").forEach(function (button) {
+      button.onclick = function () {
+        modal.querySelector("[data-modal-image]").src = button.getAttribute("data-modal-thumb");
+        thumbsNode.querySelectorAll("[data-modal-thumb]").forEach(function (item) {
+          item.classList.remove("is-active");
+        });
+        button.classList.add("is-active");
+      };
+    });
 
     var sizeSelect = modal.querySelector("[data-modal-size]");
     sizeSelect.innerHTML = product.sizes.map(function (size) {
       var sizeStock = getSizeStock(product.id, size);
       return (
-        '<option value="' + size + '"' + (sizeStock <= 0 ? " disabled" : "") + ">" +
+        '<option value="' + size + '"' + (sizeStock <= 0 || product.status === "out_of_stock" ? " disabled" : "") + ">" +
         size + (sizeStock <= 0 ? " - Out of stock" : "") + "</option>"
       );
     }).join("");
@@ -1052,7 +1132,13 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
       return;
     }
 
-    container.innerHTML = getProducts().slice(0, 4).map(createProductCard).join("");
+    var products = getProducts();
+    var featuredProducts = products.filter(function (product) {
+      return product.featured;
+    });
+    var displayProducts = (featuredProducts.length ? featuredProducts : products).slice(0, 4);
+
+    container.innerHTML = displayProducts.map(createProductCard).join("");
     bindAddToCartButtons();
     bindViewProductButtons();
     bindSizeGuideButtons();
@@ -1138,7 +1224,13 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
       priceValue.textContent = maxPrice + " BDT";
 
       var filteredProducts = activeProducts.filter(function (product) {
-        var matchesSearch = product.name.toLowerCase().indexOf(searchText) > -1;
+        var haystack = [
+          product.name,
+          product.category,
+          product.shortDescription,
+          product.description
+        ].join(" ").toLowerCase();
+        var matchesSearch = haystack.indexOf(searchText) > -1;
         var matchesCategory =
           categoryFilter.value === "All" || product.category === categoryFilter.value;
         var matchesSize = selectedSize === "All" || product.sizes.indexOf(selectedSize) > -1;
@@ -1462,6 +1554,7 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
       phone: checkoutData.phone,
       email: checkoutData.email,
       address: checkoutData.address,
+      orderNotes: checkoutData.orderNotes,
       deliveryDivision: checkoutData.deliveryDivision,
       deliveryLocation: checkoutData.deliveryLocation,
       productTotal: productTotal,
@@ -1485,6 +1578,7 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
         customer_name: orderPayload.customerName,
         phone: orderPayload.phone,
         address: orderPayload.address,
+        order_notes: orderPayload.orderNotes || "",
         division: orderPayload.deliveryDivision,
         delivery_location: orderPayload.deliveryLocation,
         product_total: orderPayload.productTotal,
@@ -1518,7 +1612,8 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
 
     return {
       id: orderInsert.data.id,
-      orderId: orderInsert.data.order_number
+      orderId: orderInsert.data.order_number,
+      deliveryCharge: orderPayload.deliveryCharge
     };
   }
 
@@ -1624,7 +1719,6 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
         var orderRef = getLastOrderRef();
         var paymentMethodField = document.querySelector("[data-payment-method]");
         var transactionField = document.querySelector("[data-payment-transaction-id]");
-        var shippingNode = document.querySelector("[data-checkout-shipping]");
 
         if (!orderRef || !paymentMethodField || !transactionField) {
           showToast("Order information was not found");
@@ -1641,7 +1735,7 @@ import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
             orderRef,
             paymentMethodField.value,
             transactionField.value.trim(),
-            Number(String(shippingNode.textContent || "0").replace(/[^\d.]/g, "")) || 0,
+            Number(orderRef.deliveryCharge || 0),
           );
           showToast("Payment information submitted");
           await renderCheckoutSuccessState();

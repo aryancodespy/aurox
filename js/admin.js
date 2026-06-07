@@ -28,17 +28,20 @@ import {
     "Delivered",
     "Cancelled"
   ];
+  var badgeOptions = ["New", "Best Seller", "Limited Stock", "Coming Soon"];
   var paymentStatusOptions = [
     "Payment Submitted",
     "Verified",
     "Rejected"
   ];
   var adminState = {
+    currentAdmin: null,
     categories: [],
     products: [],
     inventory: {},
     orders: [],
     payments: [],
+    logs: [],
     shipping: {
       Sylhet: defaultShipping.Sylhet,
       "Outside Sylhet": defaultShipping["Outside Sylhet"]
@@ -67,6 +70,14 @@ import {
   }
 
   function showSuccess(selector, message) {
+    showNotice(selector, message, false);
+  }
+
+  function showFailure(selector, message) {
+    showNotice(selector, message, true);
+  }
+
+  function showNotice(selector, message, isError) {
     var successBox = document.querySelector(selector);
     if (!successBox) {
       return;
@@ -74,10 +85,12 @@ import {
 
     successBox.textContent = message;
     successBox.classList.add("is-visible");
+    successBox.classList.toggle("is-error", Boolean(isError));
     clearTimeout(successTimeout);
     successTimeout = setTimeout(function () {
       successBox.classList.remove("is-visible");
-    }, 2200);
+      successBox.classList.remove("is-error");
+    }, isError ? 3600 : 2200);
   }
 
   function setText(selector, value) {
@@ -144,6 +157,29 @@ import {
     }
 
     return null;
+  }
+
+  function getGalleryImages(product) {
+    return (product.product_images || []).slice().sort(function (first, second) {
+      return Number(Boolean(second.is_primary)) - Number(Boolean(first.is_primary));
+    });
+  }
+
+  function getProductBadges(product) {
+    return Array.isArray(product.badges) ? product.badges : [];
+  }
+
+  function getDisplayProductStatus(status) {
+    if (status === "draft") {
+      return "Draft";
+    }
+    if (status === "out_of_stock") {
+      return "Out of Stock";
+    }
+    if (status === "archived") {
+      return "Archived";
+    }
+    return "Active";
   }
 
   function createStockCell(productId, size, value) {
@@ -272,7 +308,7 @@ import {
   async function fetchProducts() {
     var response = await supabase
       .from("products")
-      .select("id, category_id, name, slug, color, material, price, short_description, description, product_highlights, seo_title, seo_description, status, is_active, created_at, categories(id, name, slug), product_images(id, image_url, is_primary, storage_path)")
+      .select("id, category_id, name, slug, color, material, price, short_description, description, badges, product_highlights, seo_title, seo_description, status, is_featured, is_active, created_at, categories(id, name, slug), product_images(id, image_url, is_primary, storage_path)")
       .order("created_at", { ascending: false });
 
     if (response.error) {
@@ -303,7 +339,7 @@ import {
   async function fetchOrdersAndPayments() {
     var ordersResponse = await supabase
       .from("orders")
-      .select("id, order_number, customer_name, phone, address, division, delivery_location, product_total, delivery_charge, amount_to_pay_now, amount_to_pay_on_delivery, status, created_at")
+      .select("id, order_number, customer_name, phone, address, division, delivery_location, order_notes, product_total, delivery_charge, amount_to_pay_now, amount_to_pay_on_delivery, status, created_at")
       .order("created_at", { ascending: false });
 
     if (ordersResponse.error) {
@@ -387,12 +423,27 @@ import {
     }
   }
 
+  async function fetchAdminLogs() {
+    var response = await supabase
+      .from("admin_logs")
+      .select("id, admin_email, action, target_type, target_id, details, created_at")
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (response.error) {
+      throw response.error;
+    }
+
+    adminState.logs = response.data || [];
+  }
+
   async function refreshAdminData() {
     await Promise.all([
       fetchCategories(),
       fetchProducts(),
       fetchOrdersAndPayments(),
-      fetchShippingSettings()
+      fetchShippingSettings(),
+      fetchAdminLogs()
     ]);
   }
 
@@ -521,6 +572,28 @@ import {
       "</article>";
   }
 
+  function renderAdminLogs() {
+    var container = document.querySelector("[data-admin-logs]");
+    if (!container) {
+      return;
+    }
+
+    if (!adminState.logs.length) {
+      container.innerHTML =
+        '<div class="admin-order-empty"><strong>No admin activity yet.</strong><p>Product, stock, and order actions will appear here.</p></div>';
+      return;
+    }
+
+    container.innerHTML = adminState.logs.map(function (log) {
+      return (
+        '<article class="admin-order-card">' +
+          '<div class="track-card-head"><div><strong>' + escapeHtml(log.action) + '</strong><p>' + escapeHtml(log.target_type + " / " + log.target_id) + '</p></div><span class="status-pill">' + escapeHtml(log.admin_email || "Admin") + '</span></div>' +
+          "<p>" + escapeHtml(new Date(log.created_at).toLocaleString()) + "</p>" +
+        "</article>"
+      );
+    }).join("");
+  }
+
   function renderInventoryTable() {
     var tbody = document.querySelector("[data-admin-inventory-table]");
     if (!tbody) {
@@ -579,11 +652,14 @@ import {
   }
 
   function getProductStatusClass(status) {
-    if (status === "inactive") {
+    if (status === "draft") {
       return " is-inactive";
     }
     if (status === "archived") {
       return " is-archived";
+    }
+    if (status === "out_of_stock") {
+      return " is-out";
     }
     return "";
   }
@@ -606,6 +682,7 @@ import {
         ? product.product_highlights
         : [];
       var primaryImage = getPrimaryImage(product);
+      var badges = getProductBadges(product);
       return (
         '<article class="admin-product-card">' +
           '<div class="admin-product-preview">' +
@@ -613,11 +690,12 @@ import {
             '<div class="admin-product-copy">' +
               '<div class="admin-product-head">' +
                 "<div><strong>" + escapeHtml(product.name) + "</strong><p>" + escapeHtml(getCategoryName(product)) + " / " + formatPrice(product.price) + "</p></div>" +
-                '<span class="admin-status-pill' + getProductStatusClass(product.status) + '">' + escapeHtml(product.status || "active") + "</span>" +
+                '<span class="admin-status-pill' + getProductStatusClass(product.status) + '">' + escapeHtml(getDisplayProductStatus(product.status || "active")) + "</span>" +
               "</div>" +
-              '<div class="admin-product-meta"><p><strong>Slug:</strong> ' + escapeHtml(product.slug || "") + "</p><p><strong>Color:</strong> " + escapeHtml(product.color || "") + "</p><p><strong>Material:</strong> " + escapeHtml(product.material || "") + "</p></div>" +
+              '<div class="admin-product-meta"><p><strong>Slug:</strong> ' + escapeHtml(product.slug || "") + "</p><p><strong>Color:</strong> " + escapeHtml(product.color || "") + "</p><p><strong>Material:</strong> " + escapeHtml(product.material || "") + "</p><p><strong>Featured:</strong> ' + (product.is_featured ? "Yes" : "No") + "</p></div>" +
               '<div class="admin-product-stock-row"><p><strong>M:</strong> ' + stock.M + "</p><p><strong>L:</strong> " + stock.L + "</p><p><strong>XL:</strong> " + stock.XL + "</p></div>" +
               "<p>" + escapeHtml(product.short_description || product.description || "") + "</p>" +
+              (badges.length ? '<p><strong>Badges:</strong> ' + escapeHtml(badges.join(", ")) + "</p>" : "") +
               (
                 highlightList.length
                   ? '<ul class="admin-highlight-list">' + highlightList.map(function (line) {
@@ -681,6 +759,7 @@ import {
           '<div class="admin-order-meta"><p><strong>Name:</strong> ' + escapeHtml(order.customer_name) + "</p><p><strong>Phone:</strong> " + escapeHtml(order.phone) + "</p></div>" +
           '<div class="admin-order-meta"><p><strong>Address:</strong> ' + escapeHtml(order.address) + "</p><p><strong>Division:</strong> " + escapeHtml(order.division) + "</p></div>" +
           '<div class="admin-order-meta"><p><strong>Delivery Location:</strong> ' + escapeHtml(order.delivery_location) + "</p><p><strong>Items:</strong> " + getOrderItemsQuantity(order) + "</p></div>" +
+          (order.order_notes ? '<p><strong>Order Notes:</strong> ' + escapeHtml(order.order_notes) + "</p>" : "") +
           '<div class="admin-order-summary"><p><strong>Product Total:</strong> ' + formatPrice(order.product_total) + "</p><p><strong>Delivery Charge:</strong> " + formatPrice(order.delivery_charge) + '</p><p><strong>Pay Now:</strong> ' + formatPrice(order.amount_to_pay_now) + '</p><p><strong>Pay on Delivery:</strong> ' + formatPrice(order.amount_to_pay_on_delivery) + "</p></div>" +
           paymentDetails +
           '<div class="admin-order-lines">' +
@@ -754,6 +833,50 @@ import {
     preview.innerHTML = '<img src="' + escapeHtml(imageUrl) + '" alt="Product preview">';
   }
 
+  function renderGalleryList(product) {
+    var container = document.querySelector("[data-admin-gallery-list]");
+    if (!container) {
+      return;
+    }
+
+    var galleryUrlsField = document.querySelector('[data-product-field="gallery"]');
+    var urls = galleryUrlsField
+      ? galleryUrlsField.value.split(/\r?\n/).map(function (line) { return line.trim(); }).filter(Boolean)
+      : [];
+
+    if (product && product.product_images && product.product_images.length > 1) {
+      urls = getGalleryImages(product)
+        .filter(function (image) { return !image.is_primary; })
+        .map(function (image) { return image.image_url; });
+    }
+
+    if (!urls.length) {
+      container.innerHTML = '<div class="admin-empty-note">No gallery images added yet.</div>';
+      return;
+    }
+
+    container.innerHTML = urls.map(function (url) {
+      return (
+        '<div class="admin-gallery-item">' +
+          "<p>" + escapeHtml(url) + "</p>" +
+          '<button class="button button-light" type="button" data-remove-gallery-url="' + escapeHtml(url) + '">Remove</button>' +
+        "</div>"
+      );
+    }).join("");
+
+    container.querySelectorAll("[data-remove-gallery-url]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var nextUrls = urls.filter(function (url) {
+          return url !== button.getAttribute("data-remove-gallery-url");
+        });
+        if (galleryUrlsField) {
+          galleryUrlsField.value = nextUrls.join("\n");
+          renderGalleryList();
+        }
+      });
+    });
+  }
+
   function resetCategoryForm(category) {
     var form = document.querySelector("[data-admin-category-form]");
     if (!form) {
@@ -790,17 +913,25 @@ import {
     var primaryImage = product ? getPrimaryImage(product) : null;
     document.querySelector('[data-product-field="image"]').value = primaryImage ? primaryImage.image_url : "";
     document.querySelector('[data-product-field="image"]').dataset.imagePath = primaryImage ? (primaryImage.storage_path || "") : "";
-    document.querySelector('[data-product-field="status"]').value = product ? (product.status || "active") : "active";
+    document.querySelector('[data-product-field="status"]').value = product ? (product.status || "draft") : "draft";
+    document.querySelector('[data-product-field="featured"]').value = product && product.is_featured ? "true" : "false";
     document.querySelector('[data-product-field="seoTitle"]').value = product ? (product.seo_title || "") : "";
     document.querySelector('[data-product-field="seoDescription"]').value = product ? (product.seo_description || "") : "";
     document.querySelector('[data-product-field="highlights"]').value = product && Array.isArray(product.product_highlights)
       ? product.product_highlights.join("\n")
       : "";
+    document.querySelector('[data-product-field="gallery"]').value = product
+      ? getGalleryImages(product).filter(function (image) { return !image.is_primary; }).map(function (image) { return image.image_url; }).join("\n")
+      : "";
+    Array.from(document.querySelector('[data-product-field="badges"]').options).forEach(function (option) {
+      option.selected = product ? getProductBadges(product).indexOf(option.value) > -1 : false;
+    });
     document.querySelector('[data-product-stock="M"]').value = product ? getInventoryForProduct(product.id).M : 0;
     document.querySelector('[data-product-stock="L"]').value = product ? getInventoryForProduct(product.id).L : 0;
     document.querySelector('[data-product-stock="XL"]').value = product ? getInventoryForProduct(product.id).XL : 0;
     populateCategoryOptions(product ? product.category_id : "");
     renderImagePreview(primaryImage ? primaryImage.image_url : "");
+    renderGalleryList(product || null);
   }
 
   function getCategoryFormData() {
@@ -839,8 +970,20 @@ import {
     var image = document.querySelector('[data-product-field="image"]').value.trim();
     var imagePath = document.querySelector('[data-product-field="image"]').dataset.imagePath || "";
     var status = document.querySelector('[data-product-field="status"]').value;
+    var featured = document.querySelector('[data-product-field="featured"]').value === "true";
     var seoTitle = document.querySelector('[data-product-field="seoTitle"]').value.trim();
     var seoDescription = document.querySelector('[data-product-field="seoDescription"]').value.trim();
+    var galleryImages = document.querySelector('[data-product-field="gallery"]').value
+      .split(/\r?\n/)
+      .map(function (line) {
+        return line.trim();
+      })
+      .filter(Boolean);
+    var badges = Array.from(document.querySelector('[data-product-field="badges"]').selectedOptions || []).map(function (option) {
+      return option.value;
+    }).filter(function (value) {
+      return badgeOptions.indexOf(value) > -1;
+    });
     var highlights = document.querySelector('[data-product-field="highlights"]').value
       .split(/\r?\n/)
       .map(function (line) {
@@ -871,13 +1014,16 @@ import {
       price: price,
       image_url: image,
       image_path: imagePath || null,
+      gallery_images: galleryImages,
       short_description: shortDescription || description.slice(0, 140),
       description: description,
+      badges: badges,
       product_highlights: highlights,
       seo_title: seoTitle || nameField.value.trim() + " | Aurox",
       seo_description: seoDescription || shortDescription || description.slice(0, 160),
       status: status,
-      is_active: status === "active",
+      is_featured: featured,
+      is_active: status === "active" || status === "out_of_stock",
       stock: stock
     };
   }
@@ -917,10 +1063,12 @@ import {
       price: productData.price,
       short_description: productData.short_description,
       description: productData.description,
+      badges: productData.badges,
       product_highlights: productData.product_highlights,
       seo_title: productData.seo_title,
       seo_description: productData.seo_description,
       status: productData.status,
+      is_featured: productData.is_featured,
       is_active: productData.is_active
     };
 
@@ -950,15 +1098,28 @@ import {
       throw imageDeleteResponse.error;
     }
 
+    var imageRows = [];
     if (productData.image_url) {
+      imageRows.push({
+        product_id: response.data.id,
+        image_url: productData.image_url,
+        is_primary: true,
+        storage_path: productData.image_path
+      });
+    }
+    (productData.gallery_images || []).forEach(function (url) {
+      imageRows.push({
+        product_id: response.data.id,
+        image_url: url,
+        is_primary: false,
+        storage_path: null
+      });
+    });
+
+    if (imageRows.length) {
       var imageInsertResponse = await supabase
         .from("product_images")
-        .insert({
-          product_id: response.data.id,
-          image_url: productData.image_url,
-          is_primary: true,
-          storage_path: productData.image_path
-        });
+        .insert(imageRows);
 
       if (imageInsertResponse.error) {
         throw imageInsertResponse.error;
@@ -1076,7 +1237,7 @@ import {
       ? (primaryImage.storage_path || extractStoragePathFromUrl(primaryImage.image_url))
       : "";
     if (imagePath) {
-      await supabase.storage.from(SUPABASE_STORAGE_BUCKET).remove([imagePath]);
+      await removeFilesFromStorage([imagePath]);
     }
     if (primaryImage) {
       var deleteResponse = await supabase
@@ -1095,13 +1256,26 @@ import {
       return item.id === productId;
     });
 
+    var linkedOrderItemsResponse = await supabase
+      .from("order_items")
+      .select("id", { count: "exact", head: true })
+      .eq("product_id", productId);
+
+    if (linkedOrderItemsResponse.error) {
+      throw linkedOrderItemsResponse.error;
+    }
+
+    if (Number(linkedOrderItemsResponse.count || 0) > 0) {
+      throw new Error("This product is already used in orders. Archive it instead of deleting it.");
+    }
+
     if (product) {
-      var primaryImage = getPrimaryImage(product);
-      var imagePath = primaryImage
-        ? (primaryImage.storage_path || extractStoragePathFromUrl(primaryImage.image_url))
-        : "";
-      if (imagePath) {
-        await supabase.storage.from(SUPABASE_STORAGE_BUCKET).remove([imagePath]);
+      var galleryImages = getGalleryImages(product);
+      var storagePaths = galleryImages.map(function (image) {
+        return image.storage_path || extractStoragePathFromUrl(image.image_url);
+      }).filter(Boolean);
+      if (storagePaths.length) {
+        await removeFilesFromStorage(storagePaths);
       }
     }
 
@@ -1120,7 +1294,7 @@ import {
       .from("products")
       .update({
         status: nextStatus,
-        is_active: nextStatus === "active"
+        is_active: nextStatus === "active" || nextStatus === "out_of_stock"
       })
       .eq("id", productId);
 
@@ -1129,7 +1303,8 @@ import {
     }
   }
 
-  async function uploadProductImage() {
+  async function uploadProductImage(options) {
+    var uploadOptions = options || {};
     var fileInput = document.querySelector("[data-product-image-upload]");
     var errorSelector = "[data-admin-image-error]";
 
@@ -1162,9 +1337,11 @@ import {
       .getPublicUrl(filePath);
 
     var imageUrl = publicUrlResponse.data ? publicUrlResponse.data.publicUrl : "";
-    document.querySelector('[data-product-field="image"]').value = imageUrl;
-    document.querySelector('[data-product-field="image"]').dataset.imagePath = filePath;
-    renderImagePreview(imageUrl);
+    if (!uploadOptions.galleryOnly) {
+      document.querySelector('[data-product-field="image"]').value = imageUrl;
+      document.querySelector('[data-product-field="image"]').dataset.imagePath = filePath;
+      renderImagePreview(imageUrl);
+    }
     setError(errorSelector, "");
 
     return {
@@ -1178,10 +1355,31 @@ import {
       return;
     }
 
+    var galleryResponse = await supabase
+      .from("product_images")
+      .select("id, image_url, is_primary, storage_path")
+      .eq("product_id", productId);
+
+    if (galleryResponse.error) {
+      throw galleryResponse.error;
+    }
+
+    var existingPrimary = (galleryResponse.data || []).find(function (image) {
+      return image.is_primary;
+    });
+
+    if (existingPrimary) {
+      var primaryStoragePath = existingPrimary.storage_path || extractStoragePathFromUrl(existingPrimary.image_url);
+      if (primaryStoragePath) {
+        await removeFilesFromStorage([primaryStoragePath]);
+      }
+    }
+
     var deleteResponse = await supabase
       .from("product_images")
       .delete()
-      .eq("product_id", productId);
+      .eq("product_id", productId)
+      .eq("is_primary", true);
 
     if (deleteResponse.error) {
       throw deleteResponse.error;
@@ -1221,6 +1419,21 @@ import {
     }
 
     return true;
+  }
+
+  async function removeFilesFromStorage(paths) {
+    var filePaths = (paths || []).filter(Boolean);
+    if (!filePaths.length) {
+      return;
+    }
+
+    var response = await supabase.storage
+      .from(SUPABASE_STORAGE_BUCKET)
+      .remove(filePaths);
+
+    if (response.error) {
+      throw response.error;
+    }
   }
 
   async function applyOrderStock(order, direction) {
@@ -1296,6 +1509,14 @@ import {
       throw new Error("Payment record not found.");
     }
 
+    var order = adminState.orders.find(function (entry) {
+      return entry.id === payment.order_id;
+    });
+
+    if (nextStatus === "Verified" && order && order.status === "Payment Submitted") {
+      await updateOrderStatus(order.id, "Confirmed");
+    }
+
     var response = await supabase
       .from("payments")
       .update({ status: nextStatus })
@@ -1305,13 +1526,11 @@ import {
       throw response.error;
     }
 
-    if (nextStatus === "Verified") {
-      var order = adminState.orders.find(function (entry) {
-        return entry.id === payment.order_id;
+    if (nextStatus === "Verified" && order && order.status === "Payment Submitted") {
+      await logAdminAction("Order status changed", "order", order.id, {
+        status: "Confirmed",
+        reason: "Payment verified"
       });
-      if (order && order.status === "Payment Submitted") {
-        await updateOrderStatus(order.id, "Confirmed");
-      }
     }
   }
 
@@ -1329,6 +1548,7 @@ import {
       button.addEventListener("click", async function () {
         try {
           await deleteCategory(button.getAttribute("data-delete-category"));
+          await logAdminAction("Category deleted", "category", button.getAttribute("data-delete-category"), {});
           await renderDashboard();
           resetCategoryForm();
           showSuccess("[data-admin-category-success]", "Category deleted successfully.");
@@ -1359,7 +1579,12 @@ import {
         }
 
         try {
-          await updateProductStatus(product.id, product.status === "active" ? "archived" : "active");
+          var nextStatus = product.status === "active" ? "archived" : "active";
+          await updateProductStatus(product.id, nextStatus);
+          await logAdminAction("Product status changed", "product", product.id, {
+            from: product.status,
+            to: nextStatus
+          });
           await renderDashboard();
           showSuccess("[data-admin-product-success]", "Product status updated successfully.");
         } catch (error) {
@@ -1372,6 +1597,7 @@ import {
       button.addEventListener("click", async function () {
         try {
           await deleteProduct(button.getAttribute("data-delete-product"));
+          await logAdminAction("Product deleted", "product", button.getAttribute("data-delete-product"), {});
           await renderDashboard();
           resetProductForm();
           showSuccess("[data-admin-product-success]", "Product deleted successfully.");
@@ -1390,11 +1616,12 @@ import {
 
         try {
           await updateOrderStatus(orderId, select.value);
+          await logAdminAction("Order status changed", "order", orderId, { status: select.value });
           await renderDashboard();
           showSuccess("[data-admin-order-success]", "Order updated successfully.");
         } catch (error) {
           await renderDashboard();
-          showSuccess("[data-admin-order-success]", error && error.message ? error.message : "Could not update order.");
+          showFailure("[data-admin-order-success]", error && error.message ? error.message : "Could not update order.");
         }
       });
     });
@@ -1408,11 +1635,12 @@ import {
 
         try {
           await updatePaymentStatus(paymentId, select.value);
+          await logAdminAction("Payment status changed", "payment", paymentId, { status: select.value });
           await renderDashboard();
           showSuccess("[data-admin-payment-success]", "Payment updated successfully.");
         } catch (error) {
           await renderDashboard();
-          showSuccess("[data-admin-payment-success]", error && error.message ? error.message : "Could not update payment.");
+          showFailure("[data-admin-payment-success]", error && error.message ? error.message : "Could not update payment.");
         }
       });
     });
@@ -1423,6 +1651,7 @@ import {
     populateCategoryOptions();
     renderOverviewCards();
     renderAnalytics();
+    renderAdminLogs();
     renderCategoryList();
     renderInventoryTable();
     renderProductList();
@@ -1441,6 +1670,60 @@ import {
     dashboard.hidden = !isLoggedIn;
   }
 
+  async function fetchCurrentAdminProfile() {
+    var userResponse = await supabase.auth.getUser();
+    var user = userResponse.data ? userResponse.data.user : null;
+
+    if (!user) {
+      adminState.currentAdmin = null;
+      return null;
+    }
+
+    var response = await supabase
+      .from("admin_users")
+      .select("id, role, is_active")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (response.error) {
+      throw response.error;
+    }
+
+    if (!response.data || response.data.is_active === false) {
+      adminState.currentAdmin = null;
+      return null;
+    }
+
+    adminState.currentAdmin = {
+      id: response.data.id,
+      role: response.data.role,
+      email: user.email || ""
+    };
+
+    return adminState.currentAdmin;
+  }
+
+  async function logAdminAction(action, targetType, targetId, details) {
+    if (!adminState.currentAdmin || !supabase) {
+      return;
+    }
+
+    var response = await supabase
+      .from("admin_logs")
+      .insert({
+        admin_id: adminState.currentAdmin.id,
+        admin_email: adminState.currentAdmin.email,
+        action: action,
+        target_type: targetType,
+        target_id: String(targetId || ""),
+        details: details || {}
+      });
+
+    if (response.error) {
+      console.error("Could not write admin log.", response.error);
+    }
+  }
+
   async function initAdminAuth() {
     var loginForm = document.querySelector("[data-admin-login-form]");
     var emailField = document.querySelector("[data-admin-email]");
@@ -1453,42 +1736,83 @@ import {
       return;
     }
 
-    var sessionResponse = await supabase.auth.getSession();
-    renderAdminAccess(Boolean(sessionResponse.data.session));
+    try {
+      var sessionResponse = await supabase.auth.getSession();
+      var initialSession = sessionResponse.data ? sessionResponse.data.session : null;
 
-    if (sessionResponse.data.session) {
-      await renderDashboard();
+      renderAdminAccess(false);
+
+      if (initialSession) {
+        var existingAdmin = await fetchCurrentAdminProfile();
+        if (!existingAdmin) {
+          await supabase.auth.signOut();
+          renderAdminAccess(false);
+          setError("[data-admin-login-error]", "This account does not have an active admin role.");
+          return;
+        }
+
+        renderAdminAccess(true);
+        await renderDashboard();
+      }
+    } catch (error) {
+      renderAdminAccess(false);
+      setError("[data-admin-login-error]", error && error.message ? error.message : "Could not restore the admin session.");
     }
 
     loginForm.addEventListener("submit", async function (event) {
       event.preventDefault();
 
-      var loginResponse = await supabase.auth.signInWithPassword({
-        email: emailField.value.trim(),
-        password: passwordField.value
-      });
+      try {
+        var loginResponse = await supabase.auth.signInWithPassword({
+          email: emailField.value.trim(),
+          password: passwordField.value
+        });
 
-      if (loginResponse.error) {
-        setError("[data-admin-login-error]", loginResponse.error.message);
-        return;
+        if (loginResponse.error) {
+          setError("[data-admin-login-error]", loginResponse.error.message);
+          return;
+        }
+
+        setError("[data-admin-login-error]", "");
+        passwordField.value = "";
+      } catch (error) {
+        setError("[data-admin-login-error]", error && error.message ? error.message : "Could not log in.");
       }
-
-      setError("[data-admin-login-error]", "");
-      passwordField.value = "";
-      renderAdminAccess(true);
-      await renderDashboard();
     });
 
     logoutButton.addEventListener("click", async function () {
       await supabase.auth.signOut();
+      adminState.currentAdmin = null;
       renderAdminAccess(false);
       passwordField.value = "";
     });
 
     supabase.auth.onAuthStateChange(async function (event, session) {
-      renderAdminAccess(Boolean(session));
-      if (session) {
+      if (event === "INITIAL_SESSION") {
+        return;
+      }
+
+      if (!session) {
+        adminState.currentAdmin = null;
+        renderAdminAccess(false);
+        return;
+      }
+
+      try {
+        var adminProfile = await fetchCurrentAdminProfile();
+        if (!adminProfile) {
+          await supabase.auth.signOut();
+          renderAdminAccess(false);
+          setError("[data-admin-login-error]", "This account does not have an active admin role.");
+          return;
+        }
+
+        setError("[data-admin-login-error]", "");
+        renderAdminAccess(true);
         await renderDashboard();
+      } catch (error) {
+        renderAdminAccess(false);
+        setError("[data-admin-login-error]", error && error.message ? error.message : "Could not validate the admin session.");
       }
     });
   }
@@ -1498,6 +1822,7 @@ import {
     var slugField = document.querySelector('[data-product-field="slug"]');
     var categoryField = document.querySelector('[data-product-field="categoryId"]');
     var imageUrlField = document.querySelector('[data-product-field="image"]');
+    var galleryField = document.querySelector('[data-product-field="gallery"]');
 
     if (nameField && slugField) {
       nameField.addEventListener("input", function () {
@@ -1515,6 +1840,12 @@ import {
       imageUrlField.addEventListener("input", function () {
         imageUrlField.dataset.imagePath = "";
         renderImagePreview(imageUrlField.value.trim());
+      });
+    }
+
+    if (galleryField) {
+      galleryField.addEventListener("input", function () {
+        renderGalleryList();
       });
     }
 
@@ -1559,6 +1890,12 @@ import {
 
       try {
         await saveCategory(categoryData);
+        await logAdminAction(
+          categoryData.id ? "Category updated" : "Category created",
+          "category",
+          categoryData.id || categoryData.slug,
+          { name: categoryData.name, slug: categoryData.slug }
+        );
         await renderDashboard();
         resetCategoryForm();
         showSuccess("[data-admin-category-success]", categoryData.id ? "Category updated successfully." : "Category added successfully.");
@@ -1583,6 +1920,17 @@ import {
 
       try {
         await saveProduct(productData);
+        await logAdminAction(
+          productData.id ? "Product edited" : "Product created",
+          "product",
+          productData.id || productData.slug,
+          {
+            name: productData.name,
+            status: productData.status,
+            featured: productData.is_featured,
+            badges: productData.badges
+          }
+        );
         await renderDashboard();
         resetProductForm();
         showSuccess("[data-admin-product-success]", productData.id ? "Product updated successfully." : "Product added successfully.");
@@ -1598,10 +1946,11 @@ import {
     document.querySelector("[data-save-inventory]").addEventListener("click", async function () {
       try {
         await saveInventoryTable();
+        await logAdminAction("Stock updated", "inventory", "bulk", {});
         await renderDashboard();
         showSuccess("[data-admin-success]", "Inventory saved successfully.");
       } catch (error) {
-        showSuccess("[data-admin-success]", error && error.message ? error.message : "Could not save inventory.");
+        showFailure("[data-admin-success]", error && error.message ? error.message : "Could not save inventory.");
       }
     });
 
@@ -1611,7 +1960,7 @@ import {
         await fetchShippingSettings();
         showSuccess("[data-admin-shipping-success]", "Shipping settings saved successfully.");
       } catch (error) {
-        showSuccess("[data-admin-shipping-success]", error && error.message ? error.message : "Could not save shipping settings.");
+        showFailure("[data-admin-shipping-success]", error && error.message ? error.message : "Could not save shipping settings.");
       }
     });
 
@@ -1621,7 +1970,7 @@ import {
         await fetchShippingSettings();
         showSuccess("[data-admin-shipping-success]", "Shipping charges reset to default values.");
       } catch (error) {
-        showSuccess("[data-admin-shipping-success]", error && error.message ? error.message : "Could not reset shipping settings.");
+        showFailure("[data-admin-shipping-success]", error && error.message ? error.message : "Could not reset shipping settings.");
       }
     });
 
@@ -1637,9 +1986,27 @@ import {
           });
           resetProductForm(savedProduct);
         }
+        renderGalleryList();
         showSuccess("[data-admin-product-success]", "Image uploaded successfully.");
       } catch (error) {
         setError("[data-admin-image-error]", error && error.message ? error.message : "Could not upload image.");
+      }
+    });
+
+    document.querySelector("[data-upload-gallery-image]").addEventListener("click", async function () {
+      try {
+        var galleryUpload = await uploadProductImage({ galleryOnly: true });
+        var galleryField = document.querySelector('[data-product-field="gallery"]');
+        var currentUrls = galleryField.value
+          .split(/\r?\n/)
+          .map(function (line) { return line.trim(); })
+          .filter(Boolean);
+        currentUrls.push(galleryUpload.image_url);
+        galleryField.value = currentUrls.join("\n");
+        renderGalleryList();
+        showSuccess("[data-admin-product-success]", "Gallery image added to the form.");
+      } catch (error) {
+        setError("[data-admin-image-error]", error && error.message ? error.message : "Could not upload gallery image.");
       }
     });
 

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Replace aurox.example.com with your real Netlify or custom domain before submitting this sitemap. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://aurox.example.com/</loc>
+  </url>
+  <url>
+    <loc>https://aurox.example.com/about.html</loc>
+  </url>
+  <url>
+    <loc>https://aurox.example.com/shop.html</loc>
+  </url>
+  <url>
+    <loc>https://aurox.example.com/contact.html</loc>
+  </url>
+  <url>
+    <loc>https://aurox.example.com/cart.html</loc>
+  </url>
+  <url>
+    <loc>https://aurox.example.com/checkout.html</loc>
+  </url>
+  <url>
+    <loc>https://aurox.example.com/track-order.html</loc>
+  </url>
+</urlset>

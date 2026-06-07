@@ -15,6 +15,14 @@ create table if not exists public.categories (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
   slug text not null unique,
+  description text not null default '',
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.admin_users (
+  id uuid primary key references auth.users(id) on delete cascade,
+  role text not null default 'admin' check (role in ('admin', 'manager')),
   is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
@@ -32,7 +40,9 @@ create table if not exists public.products (
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   -- Extra admin-friendly fields used by the current dashboard
-  status text not null default 'active' check (status in ('active', 'inactive', 'archived')),
+  status text not null default 'draft' check (status in ('draft', 'active', 'out_of_stock', 'archived')),
+  is_featured boolean not null default false,
+  badges jsonb not null default '[]'::jsonb,
   seo_title text not null default '',
   seo_description text not null default '',
   product_highlights jsonb not null default '[]'::jsonb
@@ -66,6 +76,7 @@ create table if not exists public.orders (
   address text not null,
   division text not null,
   delivery_location text not null,
+  order_notes text not null default '',
   product_total numeric(10, 2) not null default 0,
   delivery_charge numeric(10, 2) not null default 0,
   amount_to_pay_now numeric(10, 2) not null default 0,
@@ -102,19 +113,34 @@ create table if not exists public.shipping_settings (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.admin_logs (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid references public.admin_users(id) on delete set null,
+  admin_email text not null default '',
+  action text not null,
+  target_type text not null,
+  target_id text not null default '',
+  details jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 insert into storage.buckets (id, name, public)
 values ('product-images', 'product-images', true)
 on conflict (id) do nothing;
 
 -- Upgrade support for earlier schema versions
 alter table public.products add column if not exists status text not null default 'active';
+alter table public.products add column if not exists is_featured boolean not null default false;
+alter table public.products add column if not exists badges jsonb not null default '[]'::jsonb;
 alter table public.products add column if not exists seo_title text not null default '';
 alter table public.products add column if not exists seo_description text not null default '';
 alter table public.products add column if not exists product_highlights jsonb not null default '[]'::jsonb;
 alter table public.product_images add column if not exists storage_path text;
 alter table public.inventory add column if not exists created_at timestamptz not null default now();
 alter table public.inventory add column if not exists updated_at timestamptz not null default now();
+alter table public.orders add column if not exists order_notes text not null default '';
 alter table public.orders add column if not exists updated_at timestamptz not null default now();
+alter table public.categories add column if not exists description text not null default '';
 
 -- Seed default categories
 insert into public.categories (name, slug, is_active)
@@ -150,6 +176,7 @@ with tshirt_category as (
     description,
     is_active,
     status,
+    is_featured,
     seo_title,
     seo_description,
     product_highlights
@@ -165,6 +192,7 @@ with tshirt_category as (
     item.description,
     true,
     'active',
+    true,
     item.name || ' | Aurox',
     left(item.description, 160),
     item.highlights::jsonb
@@ -266,6 +294,21 @@ begin
 end;
 $$;
 
+create or replace function public.is_store_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1
+    from public.admin_users au
+    where au.id = auth.uid()
+      and au.is_active = true
+  );
+$$;
+
 drop trigger if exists set_inventory_updated_at on public.inventory;
 create trigger set_inventory_updated_at
 before update on public.inventory
@@ -285,6 +328,7 @@ for each row
 execute function public.set_updated_at();
 
 alter table public.categories enable row level security;
+alter table public.admin_users enable row level security;
 alter table public.products enable row level security;
 alter table public.product_images enable row level security;
 alter table public.inventory enable row level security;
@@ -292,6 +336,14 @@ alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 alter table public.payments enable row level security;
 alter table public.shipping_settings enable row level security;
+alter table public.admin_logs enable row level security;
+
+drop policy if exists "Store admins can read admin users" on public.admin_users;
+create policy "Store admins can read admin users"
+on public.admin_users
+for select
+to authenticated
+using (public.is_store_admin());
 
 drop policy if exists "Public can read active categories" on public.categories;
 create policy "Public can read active categories"
@@ -304,22 +356,22 @@ create policy "Authenticated admins manage categories"
 on public.categories
 for all
 to authenticated
-using (true)
-with check (true);
+using (public.is_store_admin())
+with check (public.is_store_admin());
 
 drop policy if exists "Public can read active products" on public.products;
 create policy "Public can read active products"
 on public.products
 for select
-using ((is_active = true and status = 'active') or auth.role() = 'authenticated');
+using ((is_active = true and status in ('active', 'out_of_stock')) or public.is_store_admin());
 
 drop policy if exists "Authenticated admins manage products" on public.products;
 create policy "Authenticated admins manage products"
 on public.products
 for all
 to authenticated
-using (true)
-with check (true);
+using (public.is_store_admin())
+with check (public.is_store_admin());
 
 drop policy if exists "Public can read product images" on public.product_images;
 create policy "Public can read product images"
@@ -332,8 +384,8 @@ create policy "Authenticated admins manage product images"
 on public.product_images
 for all
 to authenticated
-using (true)
-with check (true);
+using (public.is_store_admin())
+with check (public.is_store_admin());
 
 drop policy if exists "Public can read inventory" on public.inventory;
 create policy "Public can read inventory"
@@ -346,8 +398,8 @@ create policy "Authenticated admins manage inventory"
 on public.inventory
 for all
 to authenticated
-using (true)
-with check (true);
+using (public.is_store_admin())
+with check (public.is_store_admin());
 
 drop policy if exists "Public can create orders" on public.orders;
 create policy "Public can create orders"
@@ -361,8 +413,8 @@ create policy "Authenticated admins manage orders"
 on public.orders
 for all
 to authenticated
-using (true)
-with check (true);
+using (public.is_store_admin())
+with check (public.is_store_admin());
 
 drop policy if exists "Public can create order items" on public.order_items;
 create policy "Public can create order items"
@@ -376,8 +428,8 @@ create policy "Authenticated admins manage order items"
 on public.order_items
 for all
 to authenticated
-using (true)
-with check (true);
+using (public.is_store_admin())
+with check (public.is_store_admin());
 
 drop policy if exists "Public can create payments" on public.payments;
 create policy "Public can create payments"
@@ -391,8 +443,8 @@ create policy "Authenticated admins manage payments"
 on public.payments
 for all
 to authenticated
-using (true)
-with check (true);
+using (public.is_store_admin())
+with check (public.is_store_admin());
 
 drop policy if exists "Public can read shipping settings" on public.shipping_settings;
 create policy "Public can read shipping settings"
@@ -405,8 +457,22 @@ create policy "Authenticated admins manage shipping settings"
 on public.shipping_settings
 for all
 to authenticated
-using (true)
-with check (true);
+using (public.is_store_admin())
+with check (public.is_store_admin());
+
+drop policy if exists "Store admins can read admin logs" on public.admin_logs;
+create policy "Store admins can read admin logs"
+on public.admin_logs
+for select
+to authenticated
+using (public.is_store_admin());
+
+drop policy if exists "Store admins can create admin logs" on public.admin_logs;
+create policy "Store admins can create admin logs"
+on public.admin_logs
+for insert
+to authenticated
+with check (public.is_store_admin());
 
 drop policy if exists "Public can view product images bucket" on storage.objects;
 create policy "Public can view product images bucket"
@@ -419,22 +485,22 @@ create policy "Authenticated admins upload product images bucket"
 on storage.objects
 for insert
 to authenticated
-with check (bucket_id = 'product-images');
+with check (bucket_id = 'product-images' and public.is_store_admin());
 
 drop policy if exists "Authenticated admins update product images bucket" on storage.objects;
 create policy "Authenticated admins update product images bucket"
 on storage.objects
 for update
 to authenticated
-using (bucket_id = 'product-images')
-with check (bucket_id = 'product-images');
+using (bucket_id = 'product-images' and public.is_store_admin())
+with check (bucket_id = 'product-images' and public.is_store_admin());
 
 drop policy if exists "Authenticated admins delete product images bucket" on storage.objects;
 create policy "Authenticated admins delete product images bucket"
 on storage.objects
 for delete
 to authenticated
-using (bucket_id = 'product-images');
+using (bucket_id = 'product-images' and public.is_store_admin());
 
 create or replace function public.track_orders(search_order_number text default null, search_phone text default null)
 returns table (
