@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Admin Inventory | Aurox</title>
+    <title>Admin Dashboard | Aurox</title>
     <meta
       name="description"
-      content="Manage Aurox t-shirt inventory manually."
+      content="Manage the Aurox store, products, inventory, categories, shipping, and orders."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,120 +17,406 @@
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body data-page="admin">
-    <header class="site-header">
-      <div class="container header-row">
-        <a class="brand" href="index.html" aria-label="Aurox home">
-          <img class="brand-logo" src="images/aurok-mark.png" alt="Aurox logo" />
-        </a>
-      </div>
-    </header>
-
-    <main>
-      <section class="page-hero section">
-        <div class="container panel">
-          <p class="eyebrow">Admin Inventory</p>
-          <h1>Manage stock for the current Aurox drop.</h1>
+    <div class="admin-login-screen" data-admin-login-screen>
+      <div class="container admin-login-wrap">
+        <div class="panel admin-login-panel">
+          <a class="brand admin-login-brand" href="index.html" aria-label="Aurox home">
+            <img class="brand-logo" src="images/aurok-mark.png" alt="Aurox logo" />
+          </a>
+          <p class="eyebrow">Admin Access</p>
+          <h1>Admin Login</h1>
           <p>
-            Update the stock for each size manually. These values are saved in
-            localStorage and used by the shop, product modal, cart, and checkout.
+            Sign in with your Supabase admin account to manage products,
+            categories, inventory, orders, payments, shipping, and store analytics.
+          </p>
+          <form class="admin-login-form" data-admin-login-form>
+            <div>
+              <label for="admin-email">Email</label>
+              <input id="admin-email" type="email" placeholder="admin@example.com" data-admin-email />
+            </div>
+            <div>
+              <label for="admin-password">Password</label>
+              <input id="admin-password" type="password" placeholder="Enter password" data-admin-password />
+            </div>
+            <p class="field-error admin-login-error" data-admin-login-error></p>
+            <button class="button button-dark" type="submit">Login</button>
+          </form>
+          <p class="admin-login-note">
+            Use Supabase Authentication for real production security. The admin
+            dashboard is not linked in the public navigation.
           </p>
         </div>
-      </section>
+      </div>
+    </div>
 
-      <section class="section">
-        <div class="container admin-layout">
-          <div class="panel">
-            <div class="admin-toolbar">
-              <div>
-                <p class="eyebrow">Inventory Controls</p>
-                <h2>Current product stock</h2>
-              </div>
-              <div class="button-row">
-                <button class="button button-light" type="button" data-reset-inventory>
-                  Reset Stock
-                </button>
-                <button class="button button-dark" type="button" data-save-inventory>
-                  Save Stock
-                </button>
-              </div>
-            </div>
-
-            <p class="admin-success" data-admin-success>
-              Inventory saved successfully.
-            </p>
-
-            <div class="admin-table-wrap">
-              <table class="admin-table">
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th>Size M</th>
-                    <th>Size L</th>
-                    <th>Size XL</th>
-                  </tr>
-                </thead>
-                <tbody data-admin-inventory-table></tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="admin-toolbar">
-              <div>
-                <p class="eyebrow">Shipping Settings</p>
-                <h2>Editable delivery charges</h2>
-              </div>
-              <div class="button-row">
-                <button class="button button-light" type="button" data-reset-shipping>
-                  Reset Charges
-                </button>
-                <button class="button button-dark" type="button" data-save-shipping>
-                  Save Charges
-                </button>
-              </div>
-            </div>
-
-            <p class="admin-success" data-admin-shipping-success>
-              Shipping settings saved successfully.
-            </p>
-
-            <div class="admin-settings-grid">
-              <div>
-                <label for="shipping-sylhet">Sylhet</label>
-                <input id="shipping-sylhet" class="admin-stock-input" type="number" min="0" data-shipping-input="Sylhet" />
-              </div>
-              <div>
-                <label for="shipping-outside">Outside Sylhet</label>
-                <input
-                  id="shipping-outside"
-                  class="admin-stock-input"
-                  type="number"
-                  min="0"
-                  data-shipping-input="Outside Sylhet"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="admin-toolbar">
-              <div>
-                <p class="eyebrow">Order Management</p>
-                <h2>Customer orders</h2>
-              </div>
-            </div>
-
-            <p class="admin-success" data-admin-order-success>
-              Order updated successfully.
-            </p>
-
-            <div class="admin-orders" data-admin-orders></div>
-          </div>
+    <div data-admin-dashboard hidden>
+      <header class="site-header">
+        <div class="container header-row">
+          <a class="brand" href="index.html" aria-label="Aurox home">
+            <img class="brand-logo" src="images/aurok-mark.png" alt="Aurox logo" />
+          </a>
+          <button class="button button-light admin-logout-button" type="button" data-admin-logout>
+            Logout
+          </button>
         </div>
-      </section>
-    </main>
+      </header>
+
+      <main>
+        <section class="page-hero section">
+          <div class="container panel">
+            <p class="eyebrow">Store Management</p>
+            <h1>Manage the Aurox store without touching code.</h1>
+            <p>
+              Products, categories, stock, orders, payments, shipping charges,
+              and storefront content now flow from Supabase into the existing
+              Aurox website.
+            </p>
+          </div>
+        </section>
+
+        <section class="section admin-section-tight">
+          <div class="container">
+            <div class="admin-overview-grid" data-admin-overview></div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="container admin-layout">
+            <div class="panel">
+              <div class="admin-toolbar">
+                <div>
+                  <p class="eyebrow">Category Management</p>
+                  <h2>Create and manage collections</h2>
+                </div>
+              </div>
+
+              <p class="admin-success" data-admin-category-success>
+                Category saved successfully.
+              </p>
+
+              <form class="admin-product-form" data-admin-category-form>
+                <input type="hidden" data-category-id />
+                <div class="admin-product-grid admin-product-grid-third">
+                  <div>
+                    <label for="category-name">Category Name</label>
+                    <input id="category-name" type="text" data-category-field="name" />
+                  </div>
+                  <div>
+                    <label for="category-slug">Category Slug</label>
+                    <input id="category-slug" type="text" data-category-field="slug" />
+                  </div>
+                  <div>
+                    <label for="category-status">Status</label>
+                    <select id="category-status" data-category-field="active">
+                      <option value="true">Active</option>
+                      <option value="false">Inactive</option>
+                    </select>
+                  </div>
+                  <div class="full-width">
+                    <label for="category-description">Description</label>
+                    <textarea id="category-description" rows="3" data-category-field="description"></textarea>
+                  </div>
+                </div>
+                <p class="field-error admin-product-error" data-admin-category-error></p>
+                <div class="button-row admin-product-actions">
+                  <button class="button button-light" type="button" data-category-reset>
+                    Clear Form
+                  </button>
+                  <button class="button button-dark" type="submit">
+                    Save Category
+                  </button>
+                </div>
+              </form>
+
+              <div class="admin-card-list" data-admin-category-list></div>
+            </div>
+
+            <div class="panel">
+              <div class="admin-toolbar">
+                <div>
+                  <p class="eyebrow">Product Management</p>
+                  <h2>Add, edit, activate, archive, or remove products</h2>
+                </div>
+              </div>
+
+              <p class="admin-success" data-admin-product-success>
+                Product saved successfully.
+              </p>
+
+              <form class="admin-product-form" data-admin-product-form>
+                <input type="hidden" data-product-id />
+                <div class="admin-product-grid admin-product-grid-third">
+                  <div>
+                    <label for="product-name">Product Name</label>
+                    <input id="product-name" type="text" data-product-field="name" />
+                  </div>
+                  <div>
+                    <label for="product-slug">Product Slug</label>
+                    <input id="product-slug" type="text" data-product-field="slug" />
+                  </div>
+                  <div>
+                    <label for="product-status">Status</label>
+                    <select id="product-status" data-product-field="status">
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                      <option value="archived">Archived</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="product-category">Category</label>
+                    <select id="product-category" data-product-field="categoryId"></select>
+                  </div>
+                  <div>
+                    <label for="product-color">Color</label>
+                    <input id="product-color" type="text" data-product-field="color" />
+                  </div>
+                  <div>
+                    <label for="product-material">Material</label>
+                    <input id="product-material" type="text" data-product-field="material" />
+                  </div>
+                  <div>
+                    <label for="product-price">Price</label>
+                    <input id="product-price" type="number" min="0" data-product-field="price" />
+                  </div>
+                  <div class="full-width">
+                    <label for="product-short-description">Short Description</label>
+                    <textarea id="product-short-description" rows="2" data-product-field="shortDescription"></textarea>
+                  </div>
+                  <div class="full-width">
+                    <label for="product-description">Full Description</label>
+                    <textarea id="product-description" rows="4" data-product-field="description"></textarea>
+                  </div>
+                </div>
+
+                <div class="admin-ai-box">
+                  <div class="admin-toolbar">
+                    <div>
+                      <p class="eyebrow">AI Product Assistant</p>
+                      <h3>Generate editable product copy</h3>
+                    </div>
+                    <button class="button button-light" type="button" data-generate-copy>
+                      Generate Copy
+                    </button>
+                  </div>
+                  <p class="admin-helper-text">
+                    This assistant uses template-based copy inside the admin
+                    dashboard so you can generate polished content without leaving
+                    the site. You can edit everything before saving.
+                  </p>
+                  <div class="admin-product-grid admin-product-grid-third">
+                    <div class="full-width">
+                      <label for="product-highlights">Product Highlights</label>
+                      <textarea id="product-highlights" rows="4" data-product-field="highlights" placeholder="One highlight per line"></textarea>
+                    </div>
+                    <div>
+                      <label for="product-seo-title">SEO Title</label>
+                      <input id="product-seo-title" type="text" data-product-field="seoTitle" />
+                    </div>
+                    <div class="full-width">
+                      <label for="product-seo-description">SEO Description</label>
+                      <textarea id="product-seo-description" rows="3" data-product-field="seoDescription"></textarea>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="admin-upload-box">
+                  <div class="admin-toolbar">
+                    <div>
+                      <p class="eyebrow">Product Images</p>
+                      <h3>Upload to Supabase Storage or set an image URL</h3>
+                    </div>
+                  </div>
+                  <div class="admin-product-grid admin-product-grid-third">
+                    <div class="full-width">
+                      <label for="product-image">Image URL</label>
+                      <input id="product-image" type="text" data-product-field="image" placeholder="https://..." />
+                    </div>
+                    <div class="full-width">
+                      <label for="product-image-upload">Upload Image</label>
+                      <input id="product-image-upload" type="file" accept="image/*" data-product-image-upload />
+                    </div>
+                    <div class="full-width admin-upload-actions">
+                      <button class="button button-light" type="button" data-upload-image>
+                        Upload Image
+                      </button>
+                      <button class="button button-light" type="button" data-remove-image>
+                        Remove Image
+                      </button>
+                    </div>
+                    <div class="full-width">
+                      <p class="field-error admin-product-error" data-admin-image-error></p>
+                      <div class="admin-image-preview" data-admin-image-preview>
+                        <span>No image selected yet.</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="admin-product-grid admin-product-stock-grid">
+                  <div>
+                    <label for="product-stock-m">Stock M</label>
+                    <input id="product-stock-m" type="number" min="0" data-product-stock="M" />
+                  </div>
+                  <div>
+                    <label for="product-stock-l">Stock L</label>
+                    <input id="product-stock-l" type="number" min="0" data-product-stock="L" />
+                  </div>
+                  <div>
+                    <label for="product-stock-xl">Stock XL</label>
+                    <input id="product-stock-xl" type="number" min="0" data-product-stock="XL" />
+                  </div>
+                </div>
+
+                <p class="field-error admin-product-error" data-admin-product-error></p>
+
+                <div class="button-row admin-product-actions">
+                  <button class="button button-light" type="button" data-product-reset>
+                    Clear Form
+                  </button>
+                  <button class="button button-dark" type="submit" data-save-product>
+                    Save Product
+                  </button>
+                </div>
+              </form>
+
+              <p class="admin-helper-text">
+                If Supabase is empty, the storefront still falls back to the
+                current default Aurox catalog from <code>js/data.js</code>.
+              </p>
+
+              <div class="admin-card-list" data-admin-product-list></div>
+            </div>
+
+            <div class="panel">
+              <div class="admin-toolbar">
+                <div>
+                  <p class="eyebrow">Inventory Controls</p>
+                  <h2>Current stock and low-stock warnings</h2>
+                </div>
+                <div class="button-row">
+                  <button class="button button-dark" type="button" data-save-inventory>
+                    Save Stock
+                  </button>
+                </div>
+              </div>
+
+              <p class="admin-success" data-admin-success>
+                Inventory saved successfully.
+              </p>
+
+              <div class="admin-table-wrap">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Size M</th>
+                      <th>Size L</th>
+                      <th>Size XL</th>
+                    </tr>
+                  </thead>
+                  <tbody data-admin-inventory-table></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="admin-toolbar">
+                <div>
+                  <p class="eyebrow">Shipping Settings</p>
+                  <h2>Editable delivery charges</h2>
+                </div>
+                <div class="button-row">
+                  <button class="button button-light" type="button" data-reset-shipping>
+                    Reset Charges
+                  </button>
+                  <button class="button button-dark" type="button" data-save-shipping>
+                    Save Charges
+                  </button>
+                </div>
+              </div>
+
+              <p class="admin-success" data-admin-shipping-success>
+                Shipping settings saved successfully.
+              </p>
+
+              <div class="admin-settings-grid">
+                <div>
+                  <label for="shipping-sylhet">Sylhet Delivery Charge</label>
+                  <input id="shipping-sylhet" class="admin-stock-input" type="number" min="0" data-shipping-input="Sylhet" />
+                </div>
+                <div>
+                  <label for="shipping-outside">Outside Sylhet Delivery Charge</label>
+                  <input
+                    id="shipping-outside"
+                    class="admin-stock-input"
+                    type="number"
+                    min="0"
+                    data-shipping-input="Outside Sylhet"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="admin-toolbar">
+                <div>
+                  <p class="eyebrow">Order Management</p>
+                  <h2>Search, filter, and update orders</h2>
+                </div>
+              </div>
+
+              <p class="admin-success" data-admin-order-success>
+                Order updated successfully.
+              </p>
+
+              <div class="admin-filters">
+                <input type="search" placeholder="Search by order ID, phone, or customer name" data-order-search />
+                <select data-order-filter-status>
+                  <option value="All">All statuses</option>
+                  <option value="Pending Delivery Charge">Pending Delivery Charge</option>
+                  <option value="Payment Submitted">Payment Submitted</option>
+                  <option value="Confirmed">Confirmed</option>
+                  <option value="Processing">Processing</option>
+                  <option value="Shipped">Shipped</option>
+                  <option value="Delivered">Delivered</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+              </div>
+
+              <div class="admin-orders" data-admin-orders></div>
+            </div>
+
+            <div class="panel">
+              <div class="admin-toolbar">
+                <div>
+                  <p class="eyebrow">Payment Submissions</p>
+                  <h2>Verify upfront delivery charge payments</h2>
+                </div>
+              </div>
+
+              <p class="admin-success" data-admin-payment-success>
+                Payment updated successfully.
+              </p>
+
+              <div class="admin-orders" data-admin-payments></div>
+            </div>
+
+            <div class="panel">
+              <div class="admin-toolbar">
+                <div>
+                  <p class="eyebrow">Analytics</p>
+                  <h2>Simple store performance snapshot</h2>
+                </div>
+              </div>
+
+              <div class="admin-analytics-grid" data-admin-analytics></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
 
     <script src="js/data.js"></script>
-    <script src="js/admin.js"></script>
+    <script type="module" src="js/admin.js"></script>
   </body>
 </html>

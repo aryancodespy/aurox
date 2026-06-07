@@ -185,7 +185,12 @@
                 <button class="button button-dark" type="submit">Submit Payment Information</button>
               </form>
               <p class="inventory-warning" data-payment-submit-message hidden></p>
-              <a class="button button-light" href="track-order.html">Track This Order</a>
+              <div class="button-row">
+                <a class="button button-light" href="#" target="_blank" rel="noopener noreferrer" data-whatsapp-order-link>
+                  Confirm on WhatsApp
+                </a>
+                <a class="button button-light" href="track-order.html">Track This Order</a>
+              </div>
             </div>
             <div class="checkout-products" data-checkout-products></div>
             <div class="summary-row">
@@ -258,6 +263,6 @@
     </form>
 
     <script src="js/data.js"></script>
-    <script src="js/main.js"></script>
+    <script type="module" src="js/main.js"></script>
   </body>
 </html>

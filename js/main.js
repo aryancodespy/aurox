@@ -1,27 +1,23 @@
+import { ensureSupabaseConfig, getSupabaseClient } from "./supabase-config.js";
+
 /*
   Main site script for Aurox.
-  It handles:
-  1. Mobile navigation
-  2. Product rendering, quick view, and size guide
-  3. Cart storage with localStorage
-  4. Inventory-aware stock display
-  5. Checkout, order tracking, and delivery-charge payment submission
-  6. Netlify-ready order notifications
+  It keeps the frontend static, but loads live data from Supabase when
+  configured. The cart still lives in localStorage for now, while products,
+  inventory, orders, payments, and shipping settings come from Supabase.
 */
 
 (function () {
-  var products = window.AUROX_PRODUCTS || [];
-  var inventoryTemplate = window.AUROX_INVENTORY || {};
-  var shippingTemplate = window.AUROX_SHIPPING || {
+  var supabaseReady = ensureSupabaseConfig();
+  var supabase = getSupabaseClient();
+  var defaultProducts = window.AUROX_PRODUCTS || [];
+  var defaultInventory = window.AUROX_INVENTORY || {};
+  var defaultShipping = window.AUROX_SHIPPING || {
     Sylhet: 70,
     "Outside Sylhet": 120
   };
   var cartKey = "aurox-cart";
-  var inventoryKey = "aurox-inventory";
-  var ordersKey = "aurox-orders";
-  var shippingKey = "aurox-shipping-settings";
-  var lastOrderKey = "aurox-last-order-id";
-  var shippingCost = 0;
+  var lastOrderKey = "aurox-last-order-ref";
   var toastTimeout;
   var activeProductModal = null;
   var shopUpdateGrid = null;
@@ -30,6 +26,13 @@
     { size: "L", length: '28"', chest: '40"' },
     { size: "XL", length: '29"', chest: '42"' }
   ];
+  var productsCache = [];
+  var categoriesCache = [];
+  var shippingSettingsCache = cloneObject(defaultShipping);
+
+  function cloneObject(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
 
   function formatPrice(value) {
     return Math.round(Number(value) || 0) + " BDT";
@@ -43,18 +46,71 @@
     }
   }
 
-  function cloneInventoryTemplate() {
-    return JSON.parse(JSON.stringify(inventoryTemplate));
-  }
-
-  function cloneShippingTemplate() {
-    return JSON.parse(JSON.stringify(shippingTemplate));
-  }
-
-  function getProductById(id) {
-    return products.find(function (product) {
-      return product.id === id;
+  function getDefaultCatalog() {
+    return cloneObject(defaultProducts).map(function (product) {
+      var stock = defaultInventory[product.id] || { M: 0, L: 0, XL: 0 };
+      return {
+        id: product.id,
+        slug: product.slug || product.id,
+        name: product.name,
+        category: product.category,
+        categorySlug: slugifyValue(product.category),
+        type: product.type || product.category || "Unisex T-Shirt",
+        color: product.color,
+        material: product.material,
+        price: Number(product.price) || 0,
+        image: product.image,
+        alt: product.alt,
+        shortDescription: product.shortDescription || product.description,
+        description: product.description,
+        highlights: product.highlights || [],
+        seoTitle: product.seoTitle || "",
+        seoDescription: product.seoDescription || "",
+        popularity: product.popularity || 80,
+        isNew: Boolean(product.isNew),
+        status: product.status || "active",
+        active: product.active !== false,
+        sizes: ["M", "L", "XL"],
+        stock: {
+          M: Number(stock.M) || 0,
+          L: Number(stock.L) || 0,
+          XL: Number(stock.XL) || 0
+        }
+      };
     });
+  }
+
+  function getDefaultCategories() {
+    var catalog = getDefaultCatalog();
+    var categoryMap = {};
+
+    catalog.forEach(function (product) {
+      if (!categoryMap[product.category]) {
+        categoryMap[product.category] = {
+          id: slugifyValue(product.category),
+          name: product.category,
+          slug: slugifyValue(product.category),
+          description: product.type === "Unisex T-Shirt"
+            ? "Premium Aurox essentials with more collections coming soon."
+            : "Aurox collection",
+          count: 0,
+          is_active: true
+        };
+      }
+      categoryMap[product.category].count += 1;
+    });
+
+    return Object.keys(categoryMap).map(function (key) {
+      return categoryMap[key];
+    });
+  }
+
+  function slugifyValue(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
   }
 
   function getCart() {
@@ -70,132 +126,213 @@
     localStorage.setItem(cartKey, JSON.stringify(cart));
   }
 
-  function getInventory() {
+  function setLastOrderRef(orderRef) {
+    localStorage.setItem(lastOrderKey, JSON.stringify(orderRef));
+  }
+
+  function getLastOrderRef() {
     try {
-      var rawInventory = localStorage.getItem(inventoryKey);
-      var storedInventory = rawInventory ? JSON.parse(rawInventory) : null;
-      var inventory = cloneInventoryTemplate();
+      var rawRef = localStorage.getItem(lastOrderKey);
+      return rawRef ? JSON.parse(rawRef) : null;
+    } catch (error) {
+      return null;
+    }
+  }
 
-      if (!storedInventory) {
-        return inventory;
-      }
+  function getProducts() {
+    return productsCache.filter(function (product) {
+      return product.active !== false && product.status !== "archived";
+    });
+  }
 
-      Object.keys(inventory).forEach(function (productId) {
-        Object.keys(inventory[productId]).forEach(function (size) {
-          if (
-            storedInventory[productId] &&
-            typeof storedInventory[productId][size] === "number"
-          ) {
-            inventory[productId][size] = storedInventory[productId][size];
-          }
-        });
+  function getCategories() {
+    if (categoriesCache.length) {
+      return categoriesCache.filter(function (category) {
+        return category.is_active !== false;
       });
-
-      return inventory;
-    } catch (error) {
-      return cloneInventoryTemplate();
     }
+    return getDefaultCategories();
   }
 
-  function saveInventory(inventory) {
-    localStorage.setItem(inventoryKey, JSON.stringify(inventory));
-  }
-
-  function getShippingSettings() {
-    try {
-      var rawSettings = localStorage.getItem(shippingKey);
-      var storedSettings = rawSettings ? JSON.parse(rawSettings) : null;
-      var settings = cloneShippingTemplate();
-
-      if (!storedSettings) {
-        return settings;
-      }
-
-      Object.keys(settings).forEach(function (location) {
-        if (typeof storedSettings[location] === "number") {
-          settings[location] = storedSettings[location];
-        }
-      });
-
-      return settings;
-    } catch (error) {
-      return cloneShippingTemplate();
-    }
-  }
-
-  function saveShippingSettings(settings) {
-    localStorage.setItem(shippingKey, JSON.stringify(settings));
-  }
-
-  function getOrders() {
-    try {
-      var rawOrders = localStorage.getItem(ordersKey);
-      return rawOrders ? JSON.parse(rawOrders) : [];
-    } catch (error) {
-      return [];
-    }
-  }
-
-  function saveOrders(orders) {
-    localStorage.setItem(ordersKey, JSON.stringify(orders));
-  }
-
-  function setLastOrderId(orderId) {
-    localStorage.setItem(lastOrderKey, orderId);
-  }
-
-  function getLastOrderId() {
-    return localStorage.getItem(lastOrderKey) || "";
-  }
-
-  function ensureInventoryState() {
-    saveInventory(getInventory());
-  }
-
-  function ensureShippingState() {
-    saveShippingSettings(getShippingSettings());
-  }
-
-  function getOrderItems(order) {
-    return order.items || order.products || [];
-  }
-
-  function findOrderById(orderId) {
-    return getOrders().find(function (order) {
-      return order.id === orderId;
+  function getProductById(id) {
+    return productsCache.find(function (product) {
+      return product.id === id;
     }) || null;
   }
 
-  function updateOrderById(orderId, updater) {
-    var orders = getOrders();
-    var targetOrder = null;
+  function mapInventoryRows(rows) {
+    var stockByProduct = {};
 
-    orders.forEach(function (order) {
-      if (order.id === orderId) {
-        updater(order);
-        targetOrder = order;
+    rows.forEach(function (row) {
+      if (!stockByProduct[row.product_id]) {
+        stockByProduct[row.product_id] = { M: 0, L: 0, XL: 0 };
       }
+
+      stockByProduct[row.product_id][row.size] = Number(row.stock_quantity) || 0;
     });
 
-    if (!targetOrder) {
-      return null;
-    }
-
-    saveOrders(orders);
-    return targetOrder;
+    return stockByProduct;
   }
 
-  function getInventoryTotal(productId, size) {
-    var inventory = getInventory();
+  function getPrimaryImage(product) {
+    if (product.product_images && product.product_images.length) {
+      var primaryImage = product.product_images.find(function (image) {
+        return image.is_primary;
+      }) || product.product_images[0];
 
-    if (
-      !inventory[productId] ||
-      typeof inventory[productId][size] !== "number"
-    ) {
-      return 0;
+      return primaryImage
+        ? {
+            url: primaryImage.image_url,
+            storagePath: primaryImage.storage_path || ""
+          }
+        : { url: "", storagePath: "" };
     }
 
-    return inventory[productId][size];
+    return { url: "", storagePath: "" };
+  }
+
+  async function loadProductsFromSupabase() {
+    if (!supabaseReady || !supabase) {
+      return getDefaultCatalog();
+    }
+
+    var productResponse = await supabase
+      .from("products")
+      .select("id, name, slug, color, material, price, short_description, description, product_highlights, seo_title, seo_description, status, is_active, created_at, categories(name, slug), product_images(image_url, is_primary, storage_path)")
+      .order("created_at", { ascending: false });
+
+    if (productResponse.error || !productResponse.data) {
+      return getDefaultCatalog();
+    }
+
+    if (!productResponse.data.length) {
+      return [];
+    }
+
+    var productIds = productResponse.data.map(function (product) {
+      return product.id;
+    });
+    var inventoryResponse = await supabase
+      .from("inventory")
+      .select("product_id, size, stock_quantity")
+      .in("product_id", productIds);
+    var stockByProduct = mapInventoryRows(inventoryResponse.data || []);
+
+    return productResponse.data.map(function (product) {
+      var stock = stockByProduct[product.id] || { M: 0, L: 0, XL: 0 };
+      var categoryName = product.categories && product.categories.name
+        ? product.categories.name
+        : "Unisex T-Shirt";
+      var image = getPrimaryImage(product);
+      return {
+        id: product.id,
+        slug: product.slug,
+        name: product.name,
+        category: categoryName,
+        categorySlug: product.categories && product.categories.slug
+          ? product.categories.slug
+          : slugifyValue(categoryName),
+        type: categoryName || "Unisex T-Shirt",
+        color: product.color,
+        material: product.material,
+        price: Number(product.price) || 0,
+        image: image.url || "images/product-1.svg",
+        imagePath: image.storagePath || "",
+        alt: product.name + " " + String(product.color || "").toLowerCase() + " Aurox product image",
+        shortDescription: product.short_description || product.description,
+        description: product.description,
+        highlights: Array.isArray(product.product_highlights) ? product.product_highlights : [],
+        seoTitle: product.seo_title || "",
+        seoDescription: product.seo_description || "",
+        popularity: 80,
+        isNew: false,
+        status: product.status || "active",
+        active: product.is_active !== false,
+        sizes: ["M", "L", "XL"],
+        stock: {
+          M: Number(stock.M) || 0,
+          L: Number(stock.L) || 0,
+          XL: Number(stock.XL) || 0
+        }
+      };
+    });
+  }
+
+  async function loadCategoriesFromSupabase() {
+    if (!supabaseReady || !supabase) {
+      return getDefaultCategories();
+    }
+
+    var response = await supabase
+      .from("categories")
+      .select("id, name, slug, description, is_active, created_at")
+      .order("created_at", { ascending: false });
+
+    if (response.error || !response.data || !response.data.length) {
+      return getProductsDerivedCategories();
+    }
+
+    return response.data.map(function (category) {
+      return {
+        id: category.id,
+        name: category.name,
+        slug: category.slug,
+        description: category.description,
+        is_active: category.is_active !== false,
+        count: productsCache.filter(function (product) {
+          return product.category === category.name;
+        }).length
+      };
+    });
+  }
+
+  function getProductsDerivedCategories() {
+    return getProducts().reduce(function (list, product) {
+      var existing = list.find(function (category) {
+        return category.name === product.category;
+      });
+
+      if (existing) {
+        existing.count += 1;
+        return list;
+      }
+
+      list.push({
+        id: product.categorySlug || slugifyValue(product.category),
+        name: product.category,
+        slug: product.categorySlug || slugifyValue(product.category),
+        description: "Premium Aurox collection with more categories coming soon.",
+        is_active: true,
+        count: 1
+      });
+      return list;
+    }, []);
+  }
+
+  async function loadShippingSettingsFromSupabase() {
+    if (!supabaseReady || !supabase) {
+      return cloneObject(defaultShipping);
+    }
+
+    var response = await supabase
+      .from("shipping_settings")
+      .select("location_name, charge");
+
+    if (response.error || !response.data) {
+      return cloneObject(defaultShipping);
+    }
+
+    var settings = cloneObject(defaultShipping);
+    response.data.forEach(function (row) {
+      settings[row.location_name] = Number(row.charge) || 0;
+    });
+    return settings;
+  }
+
+  async function refreshSupabaseData() {
+    productsCache = await loadProductsFromSupabase();
+    categoriesCache = await loadCategoriesFromSupabase();
+    shippingSettingsCache = await loadShippingSettingsFromSupabase();
   }
 
   function getReservedCartQuantity(productId, size) {
@@ -203,21 +340,21 @@
       if (item.productId === productId && item.size === size) {
         return total + item.quantity;
       }
-
       return total;
     }, 0);
   }
 
+  function getInventoryTotal(productId, size) {
+    var product = getProductById(productId);
+    return product && product.stock ? Number(product.stock[size]) || 0 : 0;
+  }
+
   function getSizeStock(productId, size) {
-    return Math.max(
-      0,
-      getInventoryTotal(productId, size) - getReservedCartQuantity(productId, size),
-    );
+    return Math.max(0, getInventoryTotal(productId, size) - getReservedCartQuantity(productId, size));
   }
 
   function getTotalStock(productId) {
     var product = getProductById(productId);
-
     if (!product) {
       return 0;
     }
@@ -231,33 +368,27 @@
     var availableSize = product.sizes.find(function (size) {
       return getSizeStock(product.id, size) > 0;
     });
-
     return availableSize || product.sizes[0];
   }
 
   function getStockMessage(productId, size) {
     if (typeof size === "string") {
       var sizeStock = getSizeStock(productId, size);
-
       if (sizeStock <= 0) {
         return "Out of stock";
       }
-
       return "Only " + sizeStock + " left";
     }
 
     var totalStock = getTotalStock(productId);
-
     if (totalStock <= 0) {
       return "Out of stock";
     }
-
     return "Only " + totalStock + " left";
   }
 
   function getDeliveryCharge(location) {
-    var settings = getShippingSettings();
-    return Number(settings[location] || 0);
+    return Number(shippingSettingsCache[location] || 0);
   }
 
   function getSelectedDeliveryLocation() {
@@ -269,15 +400,12 @@
     if (!division || !location) {
       return "";
     }
-
     if (division === "Sylhet" && location === "Outside Sylhet") {
       return "Your selected division is Sylhet, but delivery location is Outside Sylhet. Please confirm your delivery location.";
     }
-
     if (division !== "Sylhet" && location === "Sylhet") {
       return "Your selected division is outside Sylhet, but delivery location is Sylhet. Please confirm your delivery location.";
     }
-
     return "";
   }
 
@@ -285,88 +413,69 @@
     return "AUR-" + Date.now();
   }
 
+  function buildWhatsAppOrderLink(orderNumber) {
+    var message =
+      "Hello Aurox, I placed an order. My Order ID is " +
+      orderNumber +
+      ". I want to pay the delivery charge and confirm my order.";
+    return "https://wa.me/?text=" + encodeURIComponent(message);
+  }
+
+  async function submitOrderNotificationForm(orderPayload) {
+    var form = document.querySelector("[data-netlify-order-form]");
+    if (!form) {
+      return;
+    }
+
+    var fieldMap = {
+      order_id: orderPayload.orderNumber,
+      customer_name: orderPayload.customerName,
+      phone: orderPayload.phone,
+      address: orderPayload.address,
+      division: orderPayload.deliveryDivision,
+      delivery_location: orderPayload.deliveryLocation,
+      products: orderPayload.items.map(function (item) { return item.productName; }).join(", "),
+      sizes: orderPayload.items.map(function (item) { return item.size; }).join(", "),
+      quantities: orderPayload.items.map(function (item) { return item.quantity; }).join(", "),
+      product_total: String(orderPayload.productTotal),
+      delivery_charge: String(orderPayload.deliveryCharge),
+      status: orderPayload.status,
+      order_json: JSON.stringify(orderPayload)
+    };
+
+    Object.keys(fieldMap).forEach(function (key) {
+      var input = form.querySelector('[name="' + key + '"]');
+      if (input) {
+        input.value = fieldMap[key];
+      }
+    });
+
+    try {
+      await fetch("/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams(new FormData(form)).toString()
+      });
+    } catch (error) {
+      // Netlify form notification is best-effort and should not block checkout.
+    }
+  }
+
   function getSizeGuideTableMarkup() {
     return (
       '<table class="size-guide-table">' +
-        "<thead>" +
-          "<tr><th>Size</th><th>Length</th><th>Chest</th></tr>" +
-        "</thead>" +
+        "<thead><tr><th>Size</th><th>Length</th><th>Chest</th></tr></thead>" +
         "<tbody>" +
           sizeGuideRows.map(function (row) {
             return (
-              "<tr>" +
-                "<td>" + row.size + "</td>" +
-                "<td>" + row.length + "</td>" +
-                "<td>" + row.chest + "</td>" +
-              "</tr>"
+              "<tr><td>" + row.size + "</td><td>" + row.length + "</td><td>" + row.chest + "</td></tr>"
             );
           }).join("") +
         "</tbody>" +
       "</table>"
     );
-  }
-
-  function encodeForm(data) {
-    return Object.keys(data)
-      .map(function (key) {
-        return (
-          encodeURIComponent(key) + "=" + encodeURIComponent(String(data[key]))
-        );
-      })
-      .join("&");
-  }
-
-  function buildNetlifyOrderFields(order) {
-    var items = getOrderItems(order);
-
-    return {
-      "form-name": "aurox-orders",
-      order_id: order.id,
-      customer_name: order.customerName,
-      phone: order.phone,
-      address: order.address,
-      division: order.deliveryDivision,
-      delivery_location: order.deliveryLocation,
-      products: items
-        .map(function (item) {
-          return item.name + " / Size " + item.size + " / Qty " + item.quantity;
-        })
-        .join("\n"),
-      sizes: items.map(function (item) { return item.size; }).join(", "),
-      quantities: items.map(function (item) { return item.quantity; }).join(", "),
-      product_total: order.productTotal,
-      delivery_charge: order.deliveryCharge,
-      status: order.status,
-      order_json: JSON.stringify(order)
-    };
-  }
-
-  function submitOrderToNetlify(order) {
-    if (!window.fetch || !document.querySelector("[data-netlify-order-form]")) {
-      return Promise.resolve(false);
-    }
-
-    return fetch("/", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: encodeForm(buildNetlifyOrderFields(order))
-    })
-      .then(function (response) {
-        updateOrderById(order.id, function (targetOrder) {
-          targetOrder.notificationStatus = response.ok ? "sent" : "failed";
-          targetOrder.notificationSyncedAt = new Date().toISOString();
-        });
-        return response.ok;
-      })
-      .catch(function () {
-        updateOrderById(order.id, function (targetOrder) {
-          targetOrder.notificationStatus = "failed";
-          targetOrder.notificationSyncedAt = new Date().toISOString();
-        });
-        return false;
-      });
   }
 
   function clearCheckoutFieldErrors() {
@@ -384,11 +493,9 @@
   function setCheckoutFieldError(fieldId, message) {
     var field = document.getElementById(fieldId);
     var errorNode = document.querySelector('[data-field-error="' + fieldId + '"]');
-
     if (field) {
       field.classList.add("input-error");
     }
-
     if (errorNode) {
       errorNode.textContent = message;
     }
@@ -396,7 +503,6 @@
 
   function setCheckoutDeliveryAreaError(message) {
     var errorNode = document.querySelector('[data-field-error="delivery-area"]');
-
     if (errorNode) {
       errorNode.textContent = message;
     }
@@ -457,27 +563,22 @@
       setCheckoutFieldError("customer-name", "Customer name is required.");
       hasError = true;
     }
-
     if (!phoneField.value.trim()) {
       setCheckoutFieldError("checkout-phone", "Phone number is required.");
       hasError = true;
     }
-
     if (!addressField.value.trim()) {
       setCheckoutFieldError("address", "Full delivery address is required.");
       hasError = true;
     }
-
     if (!divisionField.value) {
       setCheckoutFieldError("delivery-division", "Delivery division is required.");
       hasError = true;
     }
-
     if (!deliveryLocation) {
       setCheckoutDeliveryAreaError("Delivery location is required.");
       hasError = true;
     }
-
     if (mismatchState.mismatchMessage && !mismatchState.confirmed) {
       hasError = true;
     }
@@ -496,15 +597,42 @@
     };
   }
 
+  function getCartDetails() {
+    return getCart()
+      .map(function (item) {
+        var product = getProductById(item.productId);
+        if (!product) {
+          return null;
+        }
+        return {
+          product: product,
+          quantity: item.quantity,
+          size: item.size,
+          lineTotal: product.price * item.quantity
+        };
+      })
+      .filter(Boolean);
+  }
+
   function getCartIssues() {
     return getCartDetails().filter(function (item) {
       return item.quantity > getInventoryTotal(item.product.id, item.size);
     });
   }
 
+  function getCartTotals() {
+    var items = getCartDetails();
+    var subtotal = items.reduce(function (total, item) {
+      return total + item.lineTotal;
+    }, 0);
+    return {
+      items: items,
+      subtotal: subtotal
+    };
+  }
+
   function getToast() {
     var existingToast = document.querySelector("[data-cart-toast]");
-
     if (existingToast) {
       return existingToast;
     }
@@ -539,20 +667,15 @@
     });
   }
 
-  function refreshStoreViews() {
+  async function refreshStoreViews() {
+    await refreshSupabaseData();
+    renderFeaturedCollections();
     renderFeaturedProducts();
-
     if (shopUpdateGrid) {
       shopUpdateGrid();
     }
-
     renderCartPage();
     renderCheckoutPage();
-    renderTrackOrderPage();
-
-    if (activeProductModal) {
-      openProductModal(activeProductModal);
-    }
   }
 
   function addToCart(productId, size, quantity) {
@@ -565,7 +688,6 @@
       showToast("Out of stock");
       return false;
     }
-
     if (itemQuantity > availableStock) {
       showToast(getStockMessage(productId, itemSize));
       return false;
@@ -588,7 +710,12 @@
 
     saveCart(cart);
     updateCartCount();
-    refreshStoreViews();
+    renderFeaturedProducts();
+    if (shopUpdateGrid) {
+      shopUpdateGrid();
+    }
+    renderCartPage();
+    renderCheckoutPage();
     showToast("Item added to cart");
     return true;
   }
@@ -600,7 +727,12 @@
 
     saveCart(updatedCart);
     updateCartCount();
-    refreshStoreViews();
+    renderFeaturedProducts();
+    if (shopUpdateGrid) {
+      shopUpdateGrid();
+    }
+    renderCartPage();
+    renderCheckoutPage();
   }
 
   function updateQuantity(productId, size, nextQuantity) {
@@ -619,7 +751,6 @@
     }
 
     var maxAllowed = getInventoryTotal(productId, size);
-
     if (nextQuantity > maxAllowed) {
       showToast(getStockMessage(productId, size));
       return;
@@ -628,40 +759,12 @@
     currentItem.quantity = nextQuantity;
     saveCart(cart);
     updateCartCount();
-    refreshStoreViews();
-  }
-
-  function getCartDetails() {
-    return getCart()
-      .map(function (item) {
-        var product = getProductById(item.productId);
-
-        if (!product) {
-          return null;
-        }
-
-        return {
-          product: product,
-          quantity: item.quantity,
-          size: item.size,
-          lineTotal: product.price * item.quantity
-        };
-      })
-      .filter(Boolean);
-  }
-
-  function getCartTotals() {
-    var items = getCartDetails();
-    var subtotal = items.reduce(function (total, item) {
-      return total + item.lineTotal;
-    }, 0);
-
-    return {
-      items: items,
-      subtotal: subtotal,
-      shipping: items.length ? shippingCost : 0,
-      tax: 0
-    };
+    renderFeaturedProducts();
+    if (shopUpdateGrid) {
+      shopUpdateGrid();
+    }
+    renderCartPage();
+    renderCheckoutPage();
   }
 
   function markActiveNav() {
@@ -686,27 +789,23 @@
   function setupMobileMenu() {
     var toggle = document.querySelector("[data-menu-toggle]");
     var nav = document.querySelector("[data-site-nav]");
-
     if (!toggle || !nav) {
       return;
     }
-
     toggle.addEventListener("click", function () {
       nav.classList.toggle("open");
     });
   }
 
   function renderDeliveryOptionPricing() {
-    var settings = getShippingSettings();
     var sylhetLabel = document.querySelector('[data-delivery-price-label="Sylhet"]');
     var outsideLabel = document.querySelector('[data-delivery-price-label="Outside Sylhet"]');
 
     if (sylhetLabel) {
-      sylhetLabel.textContent = "Delivery charge / " + formatPrice(settings.Sylhet);
+      sylhetLabel.textContent = "Delivery charge / " + formatPrice(shippingSettingsCache.Sylhet);
     }
-
     if (outsideLabel) {
-      outsideLabel.textContent = "Delivery charge / " + formatPrice(settings["Outside Sylhet"]);
+      outsideLabel.textContent = "Delivery charge / " + formatPrice(shippingSettingsCache["Outside Sylhet"]);
     }
   }
 
@@ -769,7 +868,6 @@
 
   function getInfoModal() {
     var existingModal = document.querySelector("[data-info-modal]");
-
     if (existingModal) {
       return existingModal;
     }
@@ -796,7 +894,6 @@
     var modal = getInfoModal();
     modal.removeAttribute("hidden");
     document.body.classList.add("modal-open");
-
     modal.querySelectorAll("[data-close-info-modal]").forEach(function (button) {
       button.onclick = closeInfoModal;
     });
@@ -804,11 +901,9 @@
 
   function closeInfoModal() {
     var modal = document.querySelector("[data-info-modal]");
-
     if (!modal) {
       return;
     }
-
     modal.setAttribute("hidden", "");
     document.body.classList.remove("modal-open");
   }
@@ -823,7 +918,6 @@
 
   function getProductModal() {
     var existingModal = document.querySelector("[data-product-modal]");
-
     if (existingModal) {
       return existingModal;
     }
@@ -837,9 +931,7 @@
       '<div class="product-modal-dialog panel" role="dialog" aria-modal="true" aria-labelledby="product-modal-title">' +
         '<button class="product-modal-close" type="button" aria-label="Close product details" data-close-product-modal>X</button>' +
         '<div class="product-modal-layout">' +
-          '<div class="product-modal-media">' +
-            '<img src="" alt="" data-modal-image>' +
-          "</div>" +
+          '<div class="product-modal-media"><img src="" alt="" data-modal-image></div>' +
           '<div class="product-modal-copy">' +
             '<p class="eyebrow">Aurox Product</p>' +
             '<h2 id="product-modal-title" data-modal-name></h2>' +
@@ -852,31 +944,15 @@
             "</div>" +
             '<p class="product-modal-description" data-modal-description></p>' +
             '<div class="size-guide-box">' +
-              '<div class="size-guide-head">' +
-                '<strong>Size Guide</strong>' +
-                '<button class="size-guide-link" type="button" data-open-size-guide>Open full guide</button>' +
-              "</div>" +
+              '<div class="size-guide-head"><strong>Size Guide</strong><button class="size-guide-link" type="button" data-open-size-guide>Open full guide</button></div>' +
               getSizeGuideTableMarkup() +
             "</div>" +
             '<p class="modal-stock-text" data-modal-stock></p>' +
             '<div class="product-modal-actions">' +
-              '<div class="product-option-group">' +
-                '<label for="product-size-select">Size</label>' +
-                '<select id="product-size-select" data-modal-size></select>' +
-              "</div>" +
-              '<div class="product-option-group">' +
-                '<label for="product-quantity-select">Quantity</label>' +
-                '<div class="modal-quantity-control">' +
-                  '<button type="button" data-modal-quantity-decrease>-</button>' +
-                  '<input id="product-quantity-select" type="number" min="1" value="1" data-modal-quantity>' +
-                  '<button type="button" data-modal-quantity-increase>+</button>' +
-                "</div>" +
-              "</div>" +
+              '<div class="product-option-group"><label for="product-size-select">Size</label><select id="product-size-select" data-modal-size></select></div>' +
+              '<div class="product-option-group"><label for="product-quantity-select">Quantity</label><div class="modal-quantity-control"><button type="button" data-modal-quantity-decrease>-</button><input id="product-quantity-select" type="number" min="1" value="1" data-modal-quantity><button type="button" data-modal-quantity-increase>+</button></div></div>' +
             "</div>" +
-            '<div class="product-modal-buttons">' +
-              '<button class="button button-dark" type="button" data-modal-add-to-cart>Add to Cart</button>' +
-              '<button class="button button-light" type="button" data-close-product-modal>Back to Shop</button>' +
-            "</div>" +
+            '<div class="product-modal-buttons"><button class="button button-dark" type="button" data-modal-add-to-cart>Add to Cart</button><button class="button button-light" type="button" data-close-product-modal>Back to Shop</button></div>' +
           "</div>" +
         "</div>" +
       "</div>";
@@ -903,9 +979,7 @@
     var nextQuantity = Math.max(1, Number(quantityInput.value) || 1);
 
     stockText.textContent = getStockMessage(productId, selectedSize);
-    stockText.className =
-      "modal-stock-text" + (selectedStock <= 0 ? " modal-stock-out" : "");
-
+    stockText.className = "modal-stock-text" + (selectedStock <= 0 ? " modal-stock-out" : "");
     quantityInput.max = Math.max(1, selectedStock);
     quantityInput.value = Math.min(nextQuantity, Math.max(1, selectedStock || 1));
     addButton.disabled = selectedStock <= 0;
@@ -913,7 +987,6 @@
 
   function openProductModal(productId) {
     var product = getProductById(productId);
-
     if (!product) {
       return;
     }
@@ -930,22 +1003,13 @@
     modal.querySelector("[data-modal-description]").textContent = product.description;
 
     var sizeSelect = modal.querySelector("[data-modal-size]");
-    sizeSelect.innerHTML = product.sizes
-      .map(function (size) {
-        var sizeStock = getSizeStock(product.id, size);
-        return (
-          '<option value="' +
-          size +
-          '"' +
-          (sizeStock <= 0 ? " disabled" : "") +
-          ">" +
-          size +
-          (sizeStock <= 0 ? " - Out of stock" : "") +
-          "</option>"
-        );
-      })
-      .join("");
-
+    sizeSelect.innerHTML = product.sizes.map(function (size) {
+      var sizeStock = getSizeStock(product.id, size);
+      return (
+        '<option value="' + size + '"' + (sizeStock <= 0 ? " disabled" : "") + ">" +
+        size + (sizeStock <= 0 ? " - Out of stock" : "") + "</option>"
+      );
+    }).join("");
     sizeSelect.value = getFirstAvailableSize(product);
 
     var quantityInput = modal.querySelector("[data-modal-quantity]");
@@ -955,32 +1019,22 @@
     sizeSelect.onchange = function () {
       updateModalStockState(productId);
     };
-
     quantityInput.oninput = function () {
       updateModalStockState(productId);
     };
-
     modal.querySelector("[data-modal-add-to-cart]").onclick = function () {
-      var wasAdded = addToCart(
-        productId,
-        sizeSelect.value,
-        Number(quantityInput.value) || 1,
-      );
-
+      var wasAdded = addToCart(productId, sizeSelect.value, Number(quantityInput.value) || 1);
       if (wasAdded) {
         closeProductModal();
       }
     };
-
     modal.querySelectorAll("[data-close-product-modal]").forEach(function (button) {
       button.onclick = closeProductModal;
     });
-
     modal.querySelector("[data-modal-quantity-decrease]").onclick = function () {
       quantityInput.value = Math.max(1, Number(quantityInput.value || 1) - 1);
       updateModalStockState(productId);
     };
-
     modal.querySelector("[data-modal-quantity-increase]").onclick = function () {
       quantityInput.value = Number(quantityInput.value || 1) + 1;
       updateModalStockState(productId);
@@ -994,20 +1048,48 @@
 
   function renderFeaturedProducts() {
     var container = document.querySelector("[data-featured-products]");
-
     if (!container) {
       return;
     }
 
-    container.innerHTML = products.slice(0, 4).map(createProductCard).join("");
+    container.innerHTML = getProducts().slice(0, 4).map(createProductCard).join("");
     bindAddToCartButtons();
     bindViewProductButtons();
     bindSizeGuideButtons();
   }
 
+  function renderFeaturedCollections() {
+    var container = document.querySelector("[data-featured-collections]");
+    if (!container) {
+      return;
+    }
+
+    var collections = getCategories().slice(0, 4);
+
+    if (!collections.length) {
+      container.innerHTML =
+        '<article class="collection-card"><span>01</span><h3>More collections coming soon</h3><p>Aurox is starting with premium essentials and growing toward a complete clothing line.</p></article>';
+      return;
+    }
+
+    container.innerHTML = collections.map(function (category, index) {
+      var numberLabel = String(index + 1).padStart(2, "0");
+      var countText = category.count
+        ? category.count + " product" + (category.count === 1 ? "" : "s")
+        : "New collection";
+
+      return (
+        '<article class="collection-card">' +
+          "<span>" + numberLabel + "</span>" +
+          "<h3>" + category.name + "</h3>" +
+          "<p>" + (category.description || "Premium Aurox collection.") + " " + countText + " available.</p>" +
+        "</article>"
+      );
+    }).join("");
+  }
+
   function renderShopProducts() {
     var container = document.querySelector("[data-shop-products]");
-
     if (!container) {
       return;
     }
@@ -1021,22 +1103,46 @@
     var countLabel = document.querySelector("[data-shop-count]");
 
     shopUpdateGrid = function () {
+      var activeProducts = getProducts();
+      var highestPrice = activeProducts.reduce(function (max, product) {
+        return Math.max(max, Number(product.price) || 0);
+      }, 500);
+      var priceMax = Math.max(500, Math.ceil(highestPrice / 50) * 50);
+      var selectedCategory = categoryFilter.value || "All";
+      var selectedSize = sizeFilter.value || "All";
       var searchText = searchInput.value.trim().toLowerCase();
-      var selectedCategory = categoryFilter.value;
-      var selectedSize = sizeFilter.value;
+      priceFilter.max = String(priceMax);
+      if (!priceFilter.dataset.userChanged) {
+        priceFilter.value = String(priceMax);
+      }
       var maxPrice = Number(priceFilter.value);
       var sortValue = sortFilter.value;
 
+      var categoryOptions = ["All"].concat(
+        getCategories().reduce(function (list, category) {
+          if (list.indexOf(category.name) === -1) {
+            list.push(category.name);
+          }
+          return list;
+        }, []),
+      );
+
+      categoryFilter.innerHTML = categoryOptions.map(function (category) {
+        return '<option value="' + category + '">' + category + "</option>";
+      }).join("");
+
+      if (categoryOptions.indexOf(selectedCategory) > -1) {
+        categoryFilter.value = selectedCategory;
+      }
+
       priceValue.textContent = maxPrice + " BDT";
 
-      var filteredProducts = products.filter(function (product) {
+      var filteredProducts = activeProducts.filter(function (product) {
         var matchesSearch = product.name.toLowerCase().indexOf(searchText) > -1;
         var matchesCategory =
-          selectedCategory === "All" || product.category === selectedCategory;
-        var matchesSize =
-          selectedSize === "All" || product.sizes.indexOf(selectedSize) > -1;
+          categoryFilter.value === "All" || product.category === categoryFilter.value;
+        var matchesSize = selectedSize === "All" || product.sizes.indexOf(selectedSize) > -1;
         var matchesPrice = product.price <= maxPrice;
-
         return matchesSearch && matchesCategory && matchesSize && matchesPrice;
       });
 
@@ -1048,17 +1154,18 @@
           return second.price - first.price;
         }
         if (sortValue === "popularity") {
-          return second.popularity - first.popularity;
+          return (second.popularity || 0) - (first.popularity || 0);
         }
-        return Number(second.isNew) - Number(first.isNew);
+        return Number(Boolean(second.isNew)) - Number(Boolean(first.isNew));
       });
 
       countLabel.textContent = filteredProducts.length;
-      container.innerHTML = filteredProducts.map(createProductCard).join("");
 
       if (!filteredProducts.length) {
         container.innerHTML =
           '<div class="panel empty-state"><h3>No products found</h3><p>Try adjusting your filters to explore more premium tees and upcoming Aurox drops.</p></div>';
+      } else {
+        container.innerHTML = filteredProducts.map(createProductCard).join("");
       }
 
       bindAddToCartButtons();
@@ -1069,13 +1176,18 @@
     if (!container.dataset.filtersBound) {
       [searchInput, categoryFilter, sizeFilter, priceFilter, sortFilter].forEach(function (field) {
         field.addEventListener("input", function () {
+          if (field === priceFilter) {
+            priceFilter.dataset.userChanged = "true";
+          }
           shopUpdateGrid();
         });
         field.addEventListener("change", function () {
+          if (field === priceFilter) {
+            priceFilter.dataset.userChanged = "true";
+          }
           shopUpdateGrid();
         });
       });
-
       container.dataset.filtersBound = "true";
     }
 
@@ -1084,7 +1196,6 @@
 
   function renderCartPage() {
     var itemsContainer = document.querySelector("[data-cart-items]");
-
     if (!itemsContainer) {
       return;
     }
@@ -1099,48 +1210,27 @@
 
     if (!totals.items.length) {
       itemsContainer.innerHTML =
-        '<article class="panel empty-state">' +
-          "<h3>Your cart is empty.</h3>" +
-          "<p>Start with premium unisex t-shirts from the first Aurox drop.</p>" +
-          '<a class="button button-dark" href="shop.html">Continue Shopping</a>' +
-        "</article>";
+        '<article class="panel empty-state"><h3>Your cart is empty.</h3><p>Start with premium unisex t-shirts from the current Aurox collection.</p><a class="button button-dark" href="shop.html">Continue Shopping</a></article>';
     } else {
       itemsContainer.innerHTML = totals.items.map(function (item) {
         var maxAllowed = getInventoryTotal(item.product.id, item.size);
-        var lineWarning =
-          item.quantity > maxAllowed
-            ? '<p class="inventory-warning is-error">Available stock for size ' + item.size + " is now " + maxAllowed + ".</p>"
-            : "";
-
+        var lineWarning = item.quantity > maxAllowed
+          ? '<p class="inventory-warning is-error">Available stock for size ' + item.size + " is now " + maxAllowed + ".</p>"
+          : "";
         return (
           '<article class="panel cart-item">' +
             '<img class="cart-item-image" src="' + item.product.image + '" alt="' + item.product.alt + '">' +
             '<div class="cart-item-body">' +
-              '<div class="cart-item-top">' +
-                "<div>" +
-                  "<h3>" + item.product.name + "</h3>" +
-                  "<p>Size: " + item.size + " / Color: " + item.product.color + " / " + item.product.material + "</p>" +
-                  lineWarning +
-                "</div>" +
-                "<strong>" + formatPrice(item.product.price) + "</strong>" +
-              "</div>" +
-              '<div class="cart-item-actions">' +
-                '<div class="quantity-control">' +
-                  '<button type="button" data-decrease="' + item.product.id + '" data-size="' + item.size + '">-</button>' +
-                  "<strong>" + item.quantity + "</strong>" +
-                  '<button type="button" data-increase="' + item.product.id + '" data-size="' + item.size + '"' + (item.quantity >= maxAllowed ? " disabled" : "") + ">+</button>" +
-                "</div>" +
-                '<button class="remove-button" type="button" data-remove="' + item.product.id + '" data-size="' + item.size + '">Remove</button>' +
-              "</div>" +
-            "</div>" +
-          "</article>"
+              '<div class="cart-item-top"><div><h3>' + item.product.name + '</h3><p>Size: ' + item.size + " / Color: " + item.product.color + " / " + item.product.material + "</p>" + lineWarning + '</div><strong>' + formatPrice(item.product.price) + "</strong></div>" +
+              '<div class="cart-item-actions"><div class="quantity-control"><button type="button" data-decrease="' + item.product.id + '" data-size="' + item.size + '">-</button><strong>' + item.quantity + '</strong><button type="button" data-increase="' + item.product.id + '" data-size="' + item.size + '"' + (item.quantity >= maxAllowed ? " disabled" : "") + ">+</button></div><button class=\"remove-button\" type=\"button\" data-remove=\"" + item.product.id + '" data-size="' + item.size + '">Remove</button></div>' +
+            "</div></article>"
         );
       }).join("");
     }
 
     subtotalNode.textContent = formatPrice(totals.subtotal);
-    shippingNode.textContent = formatPrice(totals.shipping);
-    totalNode.textContent = formatPrice(totals.subtotal + totals.shipping);
+    shippingNode.textContent = formatPrice(0);
+    totalNode.textContent = formatPrice(totals.subtotal);
 
     if (warningNode && checkoutButton) {
       if (cartIssues.length) {
@@ -1171,7 +1261,6 @@
         var cartItem = getCart().find(function (item) {
           return item.productId === productId && item.size === size;
         });
-
         if (cartItem) {
           updateQuantity(productId, size, cartItem.quantity + 1);
         }
@@ -1185,7 +1274,6 @@
         var cartItem = getCart().find(function (item) {
           return item.productId === productId && item.size === size;
         });
-
         if (cartItem) {
           updateQuantity(productId, size, cartItem.quantity - 1);
         }
@@ -1194,28 +1282,41 @@
 
     document.querySelectorAll("[data-remove]").forEach(function (button) {
       button.addEventListener("click", function () {
-        removeFromCart(
-          button.getAttribute("data-remove"),
-          button.getAttribute("data-size"),
-        );
+        removeFromCart(button.getAttribute("data-remove"), button.getAttribute("data-size"));
       });
     });
   }
 
-  function renderCheckoutSuccessState() {
-    var successNode = document.querySelector("[data-checkout-success]");
+  async function fetchOrderByPublicId(orderId) {
+    if (!supabaseReady || !supabase || !orderId) {
+      return null;
+    }
 
+    var orderResponse = await supabase.rpc("track_orders", {
+      search_order_number: orderId,
+      search_phone: null
+    });
+
+    if (orderResponse.error || !orderResponse.data || !orderResponse.data.length) {
+      return null;
+    }
+
+    return orderResponse.data[0];
+  }
+
+  async function renderCheckoutSuccessState() {
+    var successNode = document.querySelector("[data-checkout-success]");
     if (!successNode) {
       return;
     }
 
-    var order = findOrderById(getLastOrderId());
-    var orderIdNode = successNode.querySelector("[data-last-order-id]");
-    var paymentForm = successNode.querySelector("[data-payment-submit-form]");
-    var paymentMessage = successNode.querySelector("[data-payment-submit-message]");
-    var paymentMethodField = successNode.querySelector("[data-payment-method]");
-    var transactionField = successNode.querySelector("[data-payment-transaction-id]");
+    var lastOrderRef = getLastOrderRef();
+    if (!lastOrderRef || !lastOrderRef.orderId) {
+      successNode.hidden = true;
+      return;
+    }
 
+    var order = await fetchOrderByPublicId(lastOrderRef.orderId);
     if (!order) {
       successNode.hidden = true;
       return;
@@ -1223,42 +1324,43 @@
 
     successNode.hidden = false;
 
-    if (orderIdNode) {
-      orderIdNode.textContent = order.id;
-    }
+    var orderIdNode = successNode.querySelector("[data-last-order-id]");
+    var paymentForm = successNode.querySelector("[data-payment-submit-form]");
+    var paymentMessage = successNode.querySelector("[data-payment-submit-message]");
+    var paymentMethodField = successNode.querySelector("[data-payment-method]");
+    var transactionField = successNode.querySelector("[data-payment-transaction-id]");
 
+    if (orderIdNode) {
+      orderIdNode.textContent = order.order_number;
+    }
+    var whatsappButton = successNode.querySelector("[data-whatsapp-order-link]");
+    if (whatsappButton) {
+      whatsappButton.setAttribute("href", buildWhatsAppOrderLink(order.order_number));
+    }
     if (paymentMethodField) {
       paymentMethodField.value = "";
     }
-
     if (transactionField) {
       transactionField.value = "";
     }
-
     if (paymentMessage) {
       paymentMessage.hidden = false;
       paymentMessage.className = "inventory-warning";
-
       if (order.status === "Payment Submitted") {
-        paymentMessage.textContent =
-          "Payment information submitted successfully. We will verify your delivery charge and update the order soon.";
+        paymentMessage.textContent = "Payment information submitted successfully. We will verify your delivery charge and update the order soon.";
       } else if (
         order.status === "Confirmed" ||
         order.status === "Processing" ||
         order.status === "Shipped" ||
         order.status === "Delivered"
       ) {
-        paymentMessage.textContent =
-          "Delivery charge received. Current order status: " + order.status + ".";
+        paymentMessage.textContent = "Delivery charge received. Current order status: " + order.status + ".";
       } else if (order.status === "Cancelled") {
-        paymentMessage.textContent =
-          "This order has been cancelled. If you need help, please contact Aurox support.";
+        paymentMessage.textContent = "This order has been cancelled. If you need help, please contact Aurox support.";
       } else {
-        paymentMessage.textContent =
-          "After payment, submit your transaction ID and payment method below.";
+        paymentMessage.textContent = "After payment, submit your transaction ID and payment method below.";
       }
     }
-
     if (paymentForm) {
       paymentForm.hidden = order.status !== "Pending Delivery Charge";
     }
@@ -1266,7 +1368,6 @@
 
   function renderCheckoutPage() {
     var container = document.querySelector("[data-checkout-products]");
-
     if (!container) {
       return;
     }
@@ -1292,14 +1393,7 @@
     } else {
       container.innerHTML = totals.items.map(function (item) {
         return (
-          '<article class="checkout-product">' +
-            '<img src="' + item.product.image + '" alt="' + item.product.alt + '">' +
-            "<div>" +
-              "<strong>" + item.product.name + "</strong>" +
-              "<p>Qty " + item.quantity + " / Size " + item.size + "</p>" +
-            "</div>" +
-            "<strong>" + formatPrice(item.lineTotal) + "</strong>" +
-          "</article>"
+          '<article class="checkout-product"><img src="' + item.product.image + '" alt="' + item.product.alt + '"><div><strong>' + item.product.name + "</strong><p>Qty " + item.quantity + " / Size " + item.size + '</p></div><strong>' + formatPrice(item.lineTotal) + "</strong></article>"
         );
       }).join("");
     }
@@ -1315,11 +1409,9 @@
 
     if (warningNode && placeOrderButton) {
       if (!totals.items.length) {
-        warningNode.hidden = Boolean(findOrderById(getLastOrderId()));
+        warningNode.hidden = Boolean(getLastOrderRef());
         warningNode.className = "inventory-warning";
-        warningNode.textContent = warningNode.hidden
-          ? ""
-          : "Add products to your cart before placing an order.";
+        warningNode.textContent = warningNode.hidden ? "" : "Add products to your cart before placing an order.";
         placeOrderButton.disabled = true;
       } else if (cartIssues.length) {
         warningNode.hidden = false;
@@ -1353,68 +1445,113 @@
     var items = cartItems.map(function (item) {
       return {
         productId: item.product.id,
-        name: item.product.name,
+        productName: item.product.name,
         size: item.size,
         quantity: item.quantity,
-        price: item.product.price,
-        lineTotal: item.lineTotal
+        price: item.product.price
       };
     });
+
     var productTotal = items.reduce(function (total, item) {
-      return total + item.lineTotal;
+      return total + item.price * item.quantity;
     }, 0);
 
     return {
-      id: generateOrderId(),
+      orderNumber: generateOrderId(),
       customerName: checkoutData.customerName,
       phone: checkoutData.phone,
       email: checkoutData.email,
       address: checkoutData.address,
       deliveryDivision: checkoutData.deliveryDivision,
       deliveryLocation: checkoutData.deliveryLocation,
-      deliveryArea: checkoutData.deliveryLocation,
-      customer: {
-        name: checkoutData.customerName,
-        phone: checkoutData.phone,
-        email: checkoutData.email
-      },
-      shipping: {
-        address: checkoutData.address,
-        division: checkoutData.deliveryDivision,
-        location: checkoutData.deliveryLocation,
-        deliveryCharge: deliveryCharge
-      },
-      items: items,
-      products: items,
-      amounts: {
-        productTotal: productTotal,
-        deliveryCharge: deliveryCharge,
-        payNow: deliveryCharge,
-        payOnDelivery: productTotal
-      },
       productTotal: productTotal,
       deliveryCharge: deliveryCharge,
       amountToPayNow: deliveryCharge,
       amountToPayOnDelivery: productTotal,
-      paymentMethod: "Cash on Delivery",
-      payment: {
-        method: "Cash on Delivery",
-        deliveryChargeMethod: "",
-        transactionId: "",
-        submittedAt: ""
-      },
       status: "Pending Delivery Charge",
-      stockApplied: false,
-      source: "website",
-      notificationStatus: "pending",
-      createdAt: new Date().toISOString()
+      items: items
     };
+  }
+
+  async function saveOrderToSupabase(orderPayload) {
+    if (!supabaseReady || !supabase) {
+      throw new Error("Supabase is not configured yet.");
+    }
+
+    var orderInsert = await supabase
+      .from("orders")
+      .insert({
+        order_number: orderPayload.orderNumber,
+        customer_name: orderPayload.customerName,
+        phone: orderPayload.phone,
+        address: orderPayload.address,
+        division: orderPayload.deliveryDivision,
+        delivery_location: orderPayload.deliveryLocation,
+        product_total: orderPayload.productTotal,
+        delivery_charge: orderPayload.deliveryCharge,
+        amount_to_pay_now: orderPayload.amountToPayNow,
+        amount_to_pay_on_delivery: orderPayload.amountToPayOnDelivery,
+        status: orderPayload.status
+      })
+      .select("id, order_number")
+      .single();
+
+    if (orderInsert.error || !orderInsert.data) {
+      throw orderInsert.error || new Error("Could not save the order.");
+    }
+
+    var orderItemRows = orderPayload.items.map(function (item) {
+      return {
+        order_id: orderInsert.data.id,
+        product_id: item.productId,
+        product_name: item.productName,
+        size: item.size,
+        quantity: item.quantity,
+        price: item.price
+      };
+    });
+
+    var itemInsert = await supabase.from("order_items").insert(orderItemRows);
+    if (itemInsert.error) {
+      throw itemInsert.error;
+    }
+
+    return {
+      id: orderInsert.data.id,
+      orderId: orderInsert.data.order_number
+    };
+  }
+
+  async function submitPaymentToSupabase(orderRef, paymentMethod, transactionId, deliveryCharge) {
+    if (!supabaseReady || !supabase) {
+      throw new Error("Supabase is not configured yet.");
+    }
+
+    var paymentInsert = await supabase.from("payments").insert({
+      order_id: orderRef.id,
+      payment_method: paymentMethod,
+      transaction_id: transactionId,
+      amount: deliveryCharge,
+      status: "Payment Submitted"
+    });
+
+    if (paymentInsert.error) {
+      throw paymentInsert.error;
+    }
+
+    var orderUpdate = await supabase
+      .from("orders")
+      .update({ status: "Payment Submitted" })
+      .eq("id", orderRef.id);
+
+    if (orderUpdate.error) {
+      throw orderUpdate.error;
+    }
   }
 
   function initCheckoutPage() {
     var placeOrderButton = document.querySelector("[data-place-order]");
     var paymentForm = document.querySelector("[data-payment-submit-form]");
-
     if (!placeOrderButton) {
       return;
     }
@@ -1446,7 +1583,7 @@
       });
     }
 
-    placeOrderButton.addEventListener("click", function () {
+    placeOrderButton.addEventListener("click", async function () {
       var cartItems = getCartDetails();
       var cartIssues = getCartIssues();
 
@@ -1456,46 +1593,40 @@
       }
 
       var checkoutData = validateCheckoutFields();
-
       if (!checkoutData) {
         showToast("Please complete the required checkout details");
         renderCheckoutPage();
         return;
       }
 
-      var order = buildOrderPayload(checkoutData, cartItems);
-      var orders = getOrders();
-
-      orders.unshift(order);
-      saveOrders(orders);
-      setLastOrderId(order.id);
-      saveCart([]);
-      updateCartCount();
-      renderFeaturedProducts();
-
-      if (shopUpdateGrid) {
-        shopUpdateGrid();
+      try {
+        var orderPayload = buildOrderPayload(checkoutData, cartItems);
+        var savedOrder = await saveOrderToSupabase(orderPayload);
+        await submitOrderNotificationForm(orderPayload);
+        setLastOrderRef(savedOrder);
+        saveCart([]);
+        updateCartCount();
+        document.querySelector(".checkout-form").reset();
+        clearCheckoutFieldErrors();
+        document.querySelector('[data-delivery-area][value="Sylhet"]').checked = true;
+        updateDeliveryConfirmationState();
+        await refreshStoreViews();
+        showToast("Order request saved");
+      } catch (error) {
+        showToast(error && error.message ? error.message : "Could not save the order");
       }
-
-      showToast("Order request saved");
-      submitOrderToNetlify(order);
-
-      document.querySelector(".checkout-form").reset();
-      clearCheckoutFieldErrors();
-      document.querySelector('[data-delivery-area][value="Sylhet"]').checked = true;
-      updateDeliveryConfirmationState();
-      renderCheckoutPage();
     });
 
     if (paymentForm) {
-      paymentForm.addEventListener("submit", function (event) {
+      paymentForm.addEventListener("submit", async function (event) {
         event.preventDefault();
 
-        var order = findOrderById(getLastOrderId());
+        var orderRef = getLastOrderRef();
         var paymentMethodField = document.querySelector("[data-payment-method]");
         var transactionField = document.querySelector("[data-payment-transaction-id]");
+        var shippingNode = document.querySelector("[data-checkout-shipping]");
 
-        if (!order || !paymentMethodField || !transactionField) {
+        if (!orderRef || !paymentMethodField || !transactionField) {
           showToast("Order information was not found");
           return;
         }
@@ -1505,77 +1636,85 @@
           return;
         }
 
-        updateOrderById(order.id, function (targetOrder) {
-          targetOrder.payment = targetOrder.payment || {
-            method: "Cash on Delivery"
-          };
-          targetOrder.payment.deliveryChargeMethod = paymentMethodField.value;
-          targetOrder.payment.transactionId = transactionField.value.trim();
-          targetOrder.payment.submittedAt = new Date().toISOString();
-
-          if (
-            targetOrder.status === "Pending Delivery Charge" ||
-            targetOrder.status === "Payment Submitted"
-          ) {
-            targetOrder.status = "Payment Submitted";
-          }
-        });
-
-        showToast("Payment information submitted");
-        renderCheckoutPage();
+        try {
+          await submitPaymentToSupabase(
+            orderRef,
+            paymentMethodField.value,
+            transactionField.value.trim(),
+            Number(String(shippingNode.textContent || "0").replace(/[^\d.]/g, "")) || 0,
+          );
+          showToast("Payment information submitted");
+          await renderCheckoutSuccessState();
+        } catch (error) {
+          showToast(error && error.message ? error.message : "Could not submit payment");
+        }
       });
     }
   }
 
+  async function fetchTrackingResults(searchOrderId, searchPhone) {
+    if (!supabaseReady || !supabase) {
+      return [];
+    }
+
+    var response = await supabase.rpc("track_orders", {
+      search_order_number: searchOrderId || null,
+      search_phone: searchPhone || null
+    });
+
+    if (response.error || !response.data || !response.data.length) {
+      return [];
+    }
+
+    var orderIds = response.data.map(function (order) {
+      return order.id;
+    });
+    var itemResponse = await supabase.rpc("track_order_items", {
+      order_ids: orderIds
+    });
+
+    var itemsByOrder = {};
+    (itemResponse.data || []).forEach(function (item) {
+      if (!itemsByOrder[item.order_id]) {
+        itemsByOrder[item.order_id] = [];
+      }
+      itemsByOrder[item.order_id].push(item);
+    });
+
+    return response.data.map(function (order) {
+      order.items = itemsByOrder[order.id] || [];
+      return order;
+    });
+  }
+
   function renderTrackResults(matches) {
     var resultsNode = document.querySelector("[data-track-results]");
-
     if (!resultsNode) {
       return;
     }
 
     if (!matches.length) {
       resultsNode.innerHTML =
-        '<article class="panel empty-state">' +
-          "<h3>No matching orders found.</h3>" +
-          "<p>Check your order ID or phone number and try again.</p>" +
-        "</article>";
+        '<article class="panel empty-state"><h3>No matching orders found.</h3><p>Check your order ID or phone number and try again.</p></article>';
       return;
     }
 
     resultsNode.innerHTML = matches.map(function (order) {
       return (
         '<article class="panel track-card">' +
-          '<div class="track-card-head">' +
-            "<div>" +
-              "<strong>" + order.id + "</strong>" +
-              "<p>" + formatOrderDate(order.createdAt) + "</p>" +
-            "</div>" +
-            '<span class="status-pill">' + order.status + "</span>" +
-          "</div>" +
-          '<div class="track-card-meta">' +
-            "<p><strong>Phone:</strong> " + (order.phone || "-") + "</p>" +
-            "<p><strong>Division:</strong> " + (order.deliveryDivision || "-") + "</p>" +
-            "<p><strong>Delivery Location:</strong> " + (order.deliveryLocation || order.deliveryArea || "-") + "</p>" +
-          "</div>" +
+          '<div class="track-card-head"><div><strong>' + order.order_number + "</strong><p>" + formatOrderDate(order.created_at) + '</p></div><span class="status-pill">' + order.status + "</span></div>" +
+          '<div class="track-card-meta"><p><strong>Phone:</strong> ' + (order.phone || "-") + "</p><p><strong>Division:</strong> " + (order.division || "-") + "</p><p><strong>Delivery Location:</strong> " + (order.delivery_location || "-") + "</p></div>" +
           '<div class="track-card-lines">' +
-            getOrderItems(order).map(function (item) {
-              return (
-                '<div class="track-card-line">' +
-                  "<strong>" + item.name + "</strong>" +
-                  "<p>Size " + item.size + " / Qty " + item.quantity + "</p>" +
-                "</div>"
-              );
+            (order.items || []).map(function (item) {
+              return '<div class="track-card-line"><strong>' + item.product_name + "</strong><p>Size " + item.size + " / Qty " + item.quantity + "</p></div>";
             }).join("") +
-          "</div>" +
-        "</article>"
+          "</div></article>"
       );
     }).join("");
   }
 
   function renderTrackOrderPage() {
     var form = document.querySelector("[data-track-form]");
-
     if (!form) {
       return;
     }
@@ -1584,11 +1723,11 @@
     var phoneField = document.querySelector("[data-track-phone]");
     var warningNode = document.querySelector("[data-track-warning]");
 
-    form.onsubmit = function (event) {
+    form.onsubmit = async function (event) {
       event.preventDefault();
 
-      var orderId = orderIdField.value.trim().toLowerCase();
-      var phone = phoneField.value.replace(/\D/g, "");
+      var orderId = orderIdField.value.trim();
+      var phone = phoneField.value.trim();
 
       if (!orderId && !phone) {
         warningNode.hidden = false;
@@ -1601,38 +1740,33 @@
       warningNode.textContent = "";
       warningNode.className = "inventory-warning";
 
-      var matches = getOrders().filter(function (order) {
-        var orderMatches = orderId && String(order.id || "").toLowerCase() === orderId;
-        var phoneMatches =
-          phone &&
-          String(order.phone || "").replace(/\D/g, "") === phone;
-
-        return orderMatches || phoneMatches;
-      });
-
+      var matches = await fetchTrackingResults(orderId, phone);
       renderTrackResults(matches);
     };
   }
 
-  ensureInventoryState();
-  ensureShippingState();
-  markActiveNav();
-  setupMobileMenu();
-  updateCartCount();
-  renderFeaturedProducts();
-  renderShopProducts();
-  renderCartPage();
-  renderCheckoutPage();
-  initCheckoutPage();
-  renderTrackOrderPage();
+  async function initSite() {
+    await refreshSupabaseData();
+    markActiveNav();
+    setupMobileMenu();
+    updateCartCount();
+    renderFeaturedCollections();
+    renderFeaturedProducts();
+    renderShopProducts();
+    renderCartPage();
+    renderCheckoutPage();
+    initCheckoutPage();
+    renderTrackOrderPage();
+  }
 
   document.addEventListener("keydown", function (event) {
     if (event.key === "Escape") {
       if (activeProductModal) {
         closeProductModal();
       }
-
       closeInfoModal();
     }
   });
+
+  initSite();
 })();

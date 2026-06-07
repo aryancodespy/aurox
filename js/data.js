@@ -5,6 +5,8 @@
   2. The default stock values used by the storefront and admin page
   3. The default delivery charges used by checkout and admin settings
 
+  To change the default fallback products later, edit the values inside AUROX_PRODUCTS.
+  These are used when no custom products have been saved from admin.html yet.
   To change the default stock later, edit the values inside AUROX_INVENTORY.
   To change the default delivery charges later, edit AUROX_SHIPPING.
 */
