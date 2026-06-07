@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Checkout | Aurox</title>
+    <meta
+      name="description"
+      content="Complete your Aurox order with a clean checkout flow and order summary."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body data-page="checkout">
+    <header class="site-header">
+      <div class="container header-row">
+        <a class="brand" href="index.html" aria-label="Aurox home">
+          <img class="brand-logo" src="images/aurok-mark.png" alt="Aurox logo" />
+        </a>
+
+        <button class="menu-toggle" type="button" aria-label="Open menu" data-menu-toggle>
+          <span></span>
+          <span></span>
+        </button>
+
+        <nav class="site-nav" data-site-nav>
+          <a href="index.html">Home</a>
+          <a href="about.html">About</a>
+          <a href="shop.html">Shop</a>
+          <a href="contact.html">Contact</a>
+          <a href="track-order.html">Track Order</a>
+          <a class="cart-link" href="cart.html" aria-label="Open cart">
+            <svg class="cart-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M7 7h13l-1.5 7.5a2 2 0 0 1-2 1.5H10a2 2 0 0 1-2-1.5L5.6 4.8A1 1 0 0 0 4.6 4H3"
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.7"
+              />
+              <circle cx="10" cy="20" r="1.5" fill="currentColor" />
+              <circle cx="17" cy="20" r="1.5" fill="currentColor" />
+            </svg>
+            <span class="nav-count" data-cart-count>0</span>
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-hero section">
+        <div class="container panel">
+          <p class="eyebrow">Checkout</p>
+          <h1>A secure finish to your Aurox order.</h1>
+          <p>
+            Complete your contact details, shipping address, delivery division,
+            and Cash on Delivery confirmation details.
+          </p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container checkout-layout">
+          <form class="checkout-form">
+            <section class="panel">
+              <p class="eyebrow">Contact Information</p>
+              <div class="form-grid">
+                <div>
+                  <label for="customer-name">Customer Name</label>
+                  <input id="customer-name" type="text" placeholder="Full name" required />
+                  <p class="field-error" data-field-error="customer-name"></p>
+                </div>
+                <div>
+                  <label for="checkout-email">Email</label>
+                  <input id="checkout-email" type="email" placeholder="Email address" />
+                </div>
+                <div class="full-width">
+                  <label for="checkout-phone">Phone</label>
+                  <input id="checkout-phone" type="tel" placeholder="Phone number" required />
+                  <p class="field-error" data-field-error="checkout-phone"></p>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <p class="eyebrow">Shipping Address</p>
+              <div class="form-grid">
+                <div>
+                  <label for="delivery-division">Delivery Division</label>
+                  <select id="delivery-division" required>
+                    <option value="">Select division</option>
+                    <option value="Barishal">Barishal</option>
+                    <option value="Chattogram">Chattogram</option>
+                    <option value="Dhaka">Dhaka</option>
+                    <option value="Khulna">Khulna</option>
+                    <option value="Mymensingh">Mymensingh</option>
+                    <option value="Rajshahi">Rajshahi</option>
+                    <option value="Rangpur">Rangpur</option>
+                    <option value="Sylhet">Sylhet</option>
+                  </select>
+                  <p class="field-error" data-field-error="delivery-division"></p>
+                </div>
+                <div class="full-width">
+                  <label for="address">Full Delivery Address</label>
+                  <textarea id="address" rows="4" placeholder="House, road, area, thana, and any landmark" required></textarea>
+                  <p class="field-error" data-field-error="address"></p>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <p class="eyebrow">Delivery Location</p>
+              <label class="choice-card">
+                <span>
+                  <strong>Sylhet</strong>
+                  <small data-delivery-price-label="Sylhet">Delivery charge / 70 BDT</small>
+                </span>
+                <input type="radio" name="delivery-area" value="Sylhet" checked data-delivery-area />
+              </label>
+              <label class="choice-card">
+                <span>
+                  <strong>Outside Sylhet</strong>
+                  <small data-delivery-price-label="Outside Sylhet">Delivery charge / 120 BDT</small>
+                </span>
+                <input type="radio" name="delivery-area" value="Outside Sylhet" data-delivery-area />
+              </label>
+              <p class="field-error" data-field-error="delivery-area"></p>
+              <p class="inventory-warning" data-delivery-match-warning hidden></p>
+              <label class="confirm-check" data-delivery-confirmation-wrap hidden>
+                <input type="checkbox" data-delivery-confirmation />
+                <span>I confirm that my selected delivery location is correct.</span>
+              </label>
+            </section>
+
+            <section class="panel">
+              <p class="eyebrow">Payment</p>
+              <div class="payment-placeholder checkout-payment-note">
+                <strong>Cash on Delivery</strong>
+                <p>
+                  Your order will be confirmed after the delivery charge is paid
+                  upfront. Product payment will be collected during delivery.
+                </p>
+              </div>
+            </section>
+          </form>
+
+          <aside class="panel order-summary">
+            <p class="eyebrow">Order Summary</p>
+            <p class="inventory-warning" data-checkout-warning hidden></p>
+            <div class="payment-placeholder checkout-success" data-checkout-success hidden>
+              <strong>Your order request has been received. Please pay the delivery charge to confirm your order.</strong>
+              <p><strong>Order ID:</strong> <span data-last-order-id>-</span></p>
+              <div class="checkout-payment-methods">
+                <p><strong>Pay Delivery Charge</strong></p>
+                <p>bKash: <strong>01XXXXXXXXX</strong></p>
+                <p>Nagad: <strong>01XXXXXXXXX</strong></p>
+                <p>Reference: Use your Order ID</p>
+              </div>
+              <form class="payment-submit-form" data-payment-submit-form>
+                <div class="form-grid">
+                  <div class="full-width">
+                    <label for="payment-transaction-id">Transaction ID</label>
+                    <input
+                      id="payment-transaction-id"
+                      type="text"
+                      placeholder="Enter your transaction ID"
+                      data-payment-transaction-id
+                    />
+                  </div>
+                  <div class="full-width">
+                    <label for="payment-method">Payment Method</label>
+                    <select id="payment-method" data-payment-method>
+                      <option value="">Select payment method</option>
+                      <option value="bKash">bKash</option>
+                      <option value="Nagad">Nagad</option>
+                    </select>
+                  </div>
+                </div>
+                <button class="button button-dark" type="submit">Submit Payment Information</button>
+              </form>
+              <p class="inventory-warning" data-payment-submit-message hidden></p>
+              <a class="button button-light" href="track-order.html">Track This Order</a>
+            </div>
+            <div class="checkout-products" data-checkout-products></div>
+            <div class="summary-row">
+              <span>Product Total</span>
+              <strong data-checkout-subtotal>0 BDT</strong>
+            </div>
+            <div class="summary-row">
+              <span>Delivery Charge</span>
+              <strong data-checkout-shipping>0 BDT</strong>
+            </div>
+            <div class="summary-row">
+              <span>Amount to Pay Now</span>
+              <strong data-checkout-pay-now>0 BDT</strong>
+            </div>
+            <div class="summary-row total-row">
+              <span>Amount to Pay on Delivery</span>
+              <strong data-checkout-pay-later>0 BDT</strong>
+            </div>
+            <div class="summary-row">
+              <span>Payment Method</span>
+              <strong>Cash on Delivery</strong>
+            </div>
+            <button class="button button-dark button-block" type="button" data-place-order>
+              Place Order
+            </button>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-row">
+        <div>
+          <h3>Aurox</h3>
+          <p>
+            Premium clothing defined by confidence, identity, elegance, and
+            self-expression.
+          </p>
+        </div>
+        <div class="footer-links">
+          <a href="about.html">About</a>
+          <a href="shop.html">Shop</a>
+          <a href="contact.html">Contact</a>
+        </div>
+      </div>
+    </footer>
+
+    <form
+      name="aurox-orders"
+      method="POST"
+      data-netlify="true"
+      netlify
+      hidden
+      data-netlify-order-form
+    >
+      <input type="hidden" name="form-name" value="aurox-orders" />
+      <input type="text" name="order_id" />
+      <input type="text" name="customer_name" />
+      <input type="text" name="phone" />
+      <textarea name="address"></textarea>
+      <input type="text" name="division" />
+      <input type="text" name="delivery_location" />
+      <textarea name="products"></textarea>
+      <textarea name="sizes"></textarea>
+      <textarea name="quantities"></textarea>
+      <input type="text" name="product_total" />
+      <input type="text" name="delivery_charge" />
+      <input type="text" name="status" />
+      <textarea name="order_json"></textarea>
+    </form>
+
+    <script src="js/data.js"></script>
+    <script src="js/main.js"></script>
+  </body>
+</html>

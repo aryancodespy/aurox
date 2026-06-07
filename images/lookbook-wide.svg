@@ -1,0 +1,15 @@
+<svg width="1400" height="900" viewBox="0 0 1400 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1400" height="900" rx="36" fill="#ECE7DE"/>
+  <rect x="44" y="44" width="1312" height="812" rx="28" fill="#F8F7F4"/>
+  <rect x="92" y="92" width="468" height="716" rx="28" fill="#1A1A1A"/>
+  <rect x="584" y="92" width="672" height="350" rx="28" fill="#E4DDD1"/>
+  <rect x="584" y="466" width="318" height="342" rx="28" fill="#D3CABC"/>
+  <rect x="938" y="466" width="318" height="342" rx="28" fill="#EFEAE2"/>
+  <path d="M233 224C309 224 371 286 371 362V540C371 616 309 678 233 678C157 678 95 616 95 540V362C95 286 157 224 233 224Z" fill="#EFEAE2"/>
+  <path d="M173 634C209 598 262 590 308 615L345 808H120L173 634Z" fill="#F8F7F4"/>
+  <path d="M785 168C853 168 908 223 908 291V345C908 413 853 468 785 468C717 468 662 413 662 345V291C662 223 717 168 785 168Z" fill="#F8F7F4"/>
+  <path d="M731 424C778 394 840 392 890 420L917 442H657L731 424Z" fill="#1A1A1A"/>
+  <circle cx="1087" cy="272" r="88" fill="#F8F7F4" fill-opacity="0.6"/>
+  <path d="M1112 542C1172 542 1220 590 1220 650V808H1016V650C1016 590 1064 542 1124 542H1112Z" fill="#C5BAAA"/>
+  <text x="100" y="158" fill="#F8F7F4" font-family="Poppins, Arial, sans-serif" font-size="22" font-weight="600" letter-spacing="0.24em">LOOKBOOK</text>
+</svg>

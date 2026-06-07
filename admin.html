@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Inventory | Aurox</title>
+    <meta
+      name="description"
+      content="Manage Aurox t-shirt inventory manually."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body data-page="admin">
+    <header class="site-header">
+      <div class="container header-row">
+        <a class="brand" href="index.html" aria-label="Aurox home">
+          <img class="brand-logo" src="images/aurok-mark.png" alt="Aurox logo" />
+        </a>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-hero section">
+        <div class="container panel">
+          <p class="eyebrow">Admin Inventory</p>
+          <h1>Manage stock for the current Aurox drop.</h1>
+          <p>
+            Update the stock for each size manually. These values are saved in
+            localStorage and used by the shop, product modal, cart, and checkout.
+          </p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container admin-layout">
+          <div class="panel">
+            <div class="admin-toolbar">
+              <div>
+                <p class="eyebrow">Inventory Controls</p>
+                <h2>Current product stock</h2>
+              </div>
+              <div class="button-row">
+                <button class="button button-light" type="button" data-reset-inventory>
+                  Reset Stock
+                </button>
+                <button class="button button-dark" type="button" data-save-inventory>
+                  Save Stock
+                </button>
+              </div>
+            </div>
+
+            <p class="admin-success" data-admin-success>
+              Inventory saved successfully.
+            </p>
+
+            <div class="admin-table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Size M</th>
+                    <th>Size L</th>
+                    <th>Size XL</th>
+                  </tr>
+                </thead>
+                <tbody data-admin-inventory-table></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="admin-toolbar">
+              <div>
+                <p class="eyebrow">Shipping Settings</p>
+                <h2>Editable delivery charges</h2>
+              </div>
+              <div class="button-row">
+                <button class="button button-light" type="button" data-reset-shipping>
+                  Reset Charges
+                </button>
+                <button class="button button-dark" type="button" data-save-shipping>
+                  Save Charges
+                </button>
+              </div>
+            </div>
+
+            <p class="admin-success" data-admin-shipping-success>
+              Shipping settings saved successfully.
+            </p>
+
+            <div class="admin-settings-grid">
+              <div>
+                <label for="shipping-sylhet">Sylhet</label>
+                <input id="shipping-sylhet" class="admin-stock-input" type="number" min="0" data-shipping-input="Sylhet" />
+              </div>
+              <div>
+                <label for="shipping-outside">Outside Sylhet</label>
+                <input
+                  id="shipping-outside"
+                  class="admin-stock-input"
+                  type="number"
+                  min="0"
+                  data-shipping-input="Outside Sylhet"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="admin-toolbar">
+              <div>
+                <p class="eyebrow">Order Management</p>
+                <h2>Customer orders</h2>
+              </div>
+            </div>
+
+            <p class="admin-success" data-admin-order-success>
+              Order updated successfully.
+            </p>
+
+            <div class="admin-orders" data-admin-orders></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="js/data.js"></script>
+    <script src="js/admin.js"></script>
+  </body>
+</html>

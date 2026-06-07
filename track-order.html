@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Track Order | Aurox</title>
+    <meta
+      name="description"
+      content="Track your Aurox order by order ID or phone number."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body data-page="track-order">
+    <header class="site-header">
+      <div class="container header-row">
+        <a class="brand" href="index.html" aria-label="Aurox home">
+          <img class="brand-logo" src="images/aurok-mark.png" alt="Aurox logo" />
+        </a>
+
+        <button class="menu-toggle" type="button" aria-label="Open menu" data-menu-toggle>
+          <span></span>
+          <span></span>
+        </button>
+
+        <nav class="site-nav" data-site-nav>
+          <a href="index.html">Home</a>
+          <a href="about.html">About</a>
+          <a href="shop.html">Shop</a>
+          <a href="contact.html">Contact</a>
+          <a href="track-order.html">Track Order</a>
+          <a class="cart-link" href="cart.html" aria-label="Open cart">
+            <svg class="cart-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M7 7h13l-1.5 7.5a2 2 0 0 1-2 1.5H10a2 2 0 0 1-2-1.5L5.6 4.8A1 1 0 0 0 4.6 4H3"
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.7"
+              />
+              <circle cx="10" cy="20" r="1.5" fill="currentColor" />
+              <circle cx="17" cy="20" r="1.5" fill="currentColor" />
+            </svg>
+            <span class="nav-count" data-cart-count>0</span>
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-hero section">
+        <div class="container panel">
+          <p class="eyebrow">Track Order</p>
+          <h1>Follow your Aurox order status.</h1>
+          <p>
+            Enter your order ID or phone number to view order details, sizes,
+            quantities, and the latest status.
+          </p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container track-layout">
+          <form class="panel track-form" data-track-form>
+            <div class="form-grid">
+              <div>
+                <label for="track-order-id">Order ID</label>
+                <input id="track-order-id" type="text" placeholder="AUR-1234567890" data-track-order-id />
+              </div>
+              <div>
+                <label for="track-phone">Phone Number</label>
+                <input id="track-phone" type="tel" placeholder="01XXXXXXXXX" data-track-phone />
+              </div>
+            </div>
+            <p class="inventory-warning" data-track-warning hidden></p>
+            <button class="button button-dark" type="submit">Track Order</button>
+          </form>
+
+          <div class="track-results" data-track-results>
+            <article class="panel empty-state">
+              <h3>Track your order anytime.</h3>
+              <p>Search with your order ID or the phone number used during checkout.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-row">
+        <div>
+          <h3>Aurox</h3>
+          <p>
+            Premium clothing defined by confidence, identity, elegance, and
+            self-expression.
+          </p>
+        </div>
+        <div class="footer-links">
+          <a href="about.html">About</a>
+          <a href="shop.html">Shop</a>
+          <a href="contact.html">Contact</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="js/data.js"></script>
+    <script src="js/main.js"></script>
+  </body>
+</html>

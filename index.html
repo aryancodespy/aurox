@@ -1,83 +1,225 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-	<!-- Meta -->
-	<meta charset="utf-8">
-	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<!-- Page Title -->
-	<title>Aurox - Defined By Your Aura</title>
-	<!-- Google Fonts css-->
-	<link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600,700" rel="stylesheet">
-	<!-- Bootstrap css -->
-	<link href="css/bootstrap.min.css" rel="stylesheet" media="screen">
-	<!-- Font Awesome icon css-->
-	<link href="css/font-awesome.min.css" rel="stylesheet" media="screen">
-	<!-- Main custom css -->
-	<link href="css/custom.css" rel="stylesheet" media="screen">
-	<!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
-    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
-    <!--[if lt IE 9]>
-      <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
-      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
-    <![endif]-->
-</head>
-<body>
-	<!-- Coming Soon Wrapper starts -->
-	<div class="comming-soon">
-		<div id="particles-js"></div>
-		<div class="container-fluid">
-			<div class="row">
-				<div class="col-md-12">
-					<div class="coming-soon-box">
-						<!-- Logo start -->
-						<div class="logo">
-							<img src="./Untitled design.png" alt="logo">
-						</div>
-						<!-- Logo end -->
-						
-						<div class="coming-text">
-							<h2>COMING SOON</h2>
-						</div>
-						
-						<!-- Social Media start -->
-						<div class="social-link">
-							<a href="https://facebook.com/aurox.bd"><i class="fa fa-facebook"></i></a>
-							<a href="https://instagram.com/aurox.bd"><i class="fa fa-instagram"></i></a>
-						</div>
-						<!-- Social Media end -->
-						
-						<!-- Newsletter Form start -->
-						<div class="newsletter">
-							<p>Our website is under construction, but we are ready to go! Want to know more about us or just to say hello? Drop us a line and we will get back as soon as possible.</p>
-							
-							<div class="newsletter-form">
-								<form name="contact" netlify>
-									<input type="text" class="new-text" placeholder="Enter your email address...." required />
-									<input type="tel" class="new-text" placeholder="Enter your phone number...." required />
-									<button type="submit" class="new-btn"><i class="fa fa-send"></i> Notify Me</button>
-								</form>
-							</div>
-						</div>
-						<!-- Newsletter Form end -->
-						
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
-	<!-- Coming Soon Wrapper ends -->
-	
-    <!-- Jquery Library File -->
-	<script src="js/jquery-1.12.4.min.js"></script>
-	<!-- SmoothScroll -->
-	<script src="js/SmoothScroll.js"></script>
-    <!-- Bootstrap js file -->
-	<script src="js/bootstrap.min.js"></script>
-	<!-- particles js file -->
-	<script src="js/particles.js"></script>
-	<script src="js/app.js"></script>
-	<!-- Main Custom js file -->
-	<script src="js/function.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aurox | Defined by Your Aura</title>
+    <meta
+      name="description"
+      content="Aurox is a premium clothing brand defined by confidence, identity, elegance, and self-expression."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body data-page="home">
+    <header class="site-header">
+      <div class="container header-row">
+        <a class="brand" href="index.html" aria-label="Aurox home">
+          <img class="brand-logo" src="images/aurok-mark.png" alt="Aurox logo" />
+        </a>
+
+        <button class="menu-toggle" type="button" aria-label="Open menu" data-menu-toggle>
+          <span></span>
+          <span></span>
+        </button>
+
+        <nav class="site-nav" data-site-nav>
+          <a href="index.html">Home</a>
+          <a href="about.html">About</a>
+          <a href="shop.html">Shop</a>
+          <a href="contact.html">Contact</a>
+          <a href="track-order.html">Track Order</a>
+          <a class="cart-link" href="cart.html" aria-label="Open cart">
+            <svg class="cart-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M7 7h13l-1.5 7.5a2 2 0 0 1-2 1.5H10a2 2 0 0 1-2-1.5L5.6 4.8A1 1 0 0 0 4.6 4H3"
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.7"
+              />
+              <circle cx="10" cy="20" r="1.5" fill="currentColor" />
+              <circle cx="17" cy="20" r="1.5" fill="currentColor" />
+            </svg>
+            <span class="nav-count" data-cart-count>0</span>
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero section">
+        <div class="container hero-layout">
+          <div class="hero-copy">
+            <p class="eyebrow">Aurox Signature</p>
+            <h1>Defined by Your Aura</h1>
+            <p class="intro">
+              Starting with premium unisex t-shirts designed for confidence,
+              presence, and personal expression.
+            </p>
+            <div class="button-row">
+              <a class="button button-dark" href="shop.html">Shop Now</a>
+              <a class="button button-light" href="shop.html">Explore Collection</a>
+            </div>
+
+            <div class="mini-features">
+              <article class="mini-card">
+                <h3>Premium Finish</h3>
+                <p>Refined unisex tees with elevated feel and clean finishing.</p>
+              </article>
+              <article class="mini-card">
+                <h3>First Drop Focus</h3>
+                <p>Our first drop focuses on versatile unisex tees for everyday wear.</p>
+              </article>
+              <article class="mini-card">
+                <h3>Built to Grow</h3>
+                <p>Built to grow into a complete clothing line with more collections coming soon.</p>
+              </article>
+            </div>
+          </div>
+
+          <div class="hero-visual panel">
+            <img src="images/hero-editorial.svg" alt="Aurox editorial fashion visual" />
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="section-heading">
+            <p class="eyebrow">Featured Collections</p>
+            <h2>Curated for every expression of style</h2>
+          </div>
+
+          <div class="collection-grid">
+            <article class="collection-card">
+              <span>01</span>
+              <h3>Unisex T-Shirts</h3>
+              <p>Premium tees designed as the foundation of the Aurox wardrobe.</p>
+            </article>
+            <article class="collection-card">
+              <span>02</span>
+              <h3>Everyday T-Shirts</h3>
+              <p>Versatile essential styles made for daily confidence and ease.</p>
+            </article>
+            <article class="collection-card">
+              <span>03</span>
+              <h3>Minimal T-Shirts</h3>
+              <p>Quiet detailing, clean lines, and a polished minimalist attitude.</p>
+            </article>
+            <article class="collection-card">
+              <span>04</span>
+              <h3>Signature Aurox Tees</h3>
+              <p>Core Aurox pieces now, with more collections coming soon.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="brand-story panel split-panel">
+            <div>
+              <p class="eyebrow">Brand Intro</p>
+              <h2>Style That Reflects Who You Are</h2>
+            </div>
+            <p>
+              Aurox is built for people who see clothing as more than fashion.
+              Our first drop focuses on versatile unisex tees designed to reflect
+              confidence, individuality, and the aura you carry, while leaving
+              room for a complete clothing line to grow.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="section-heading section-heading-row">
+            <div>
+              <p class="eyebrow">Featured Products</p>
+              <h2>Premium tees for modern presence</h2>
+            </div>
+            <a class="button button-light" href="shop.html">View Full Shop</a>
+          </div>
+          <div class="product-grid" data-featured-products></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container lookbook-grid">
+          <div class="panel image-panel">
+            <img src="images/lookbook-wide.svg" alt="Aurox editorial lookbook visual" />
+          </div>
+          <article class="panel lookbook-copy">
+            <p class="eyebrow">Lookbook</p>
+            <h2>An editorial mood with everyday ease</h2>
+            <p>
+              Strong essentials, neutral depth, and elevated simplicity. Aurox
+              begins with premium unisex t-shirts and is built to grow into a
+              broader clothing line with the same deliberate attitude.
+            </p>
+            <a class="button button-light" href="about.html">Read the brand story</a>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="newsletter-panel">
+            <div>
+              <p class="eyebrow eyebrow-light">Newsletter</p>
+              <h2>Stay in the Aurox Circle</h2>
+              <p>
+                Be first to see new drops, refined essentials, and style edits
+                designed around your aura.
+              </p>
+            </div>
+            <form class="newsletter-form">
+              <input type="email" placeholder="Email address" aria-label="Email address" />
+              <button class="button button-light-solid" type="submit">Join Now</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="section-heading">
+            <p class="eyebrow">Reviews</p>
+            <h2>Customer voice, coming into focus</h2>
+          </div>
+          <div class="panel review-placeholder">
+            <p>Customer reviews coming soon.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-row">
+        <div>
+          <h3>Aurox</h3>
+          <p>
+            Premium clothing defined by confidence, identity, elegance, and
+            self-expression.
+          </p>
+        </div>
+        <div class="footer-links">
+          <a href="about.html">About</a>
+          <a href="shop.html">Shop</a>
+          <a href="contact.html">Contact</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="js/data.js"></script>
+    <script src="js/main.js"></script>
+  </body>
 </html>

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shop | Aurox</title>
+    <meta
+      name="description"
+      content="Browse the current Aurox unisex t-shirt collection, with more collections coming soon."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body data-page="shop">
+    <header class="site-header">
+      <div class="container header-row">
+        <a class="brand" href="index.html" aria-label="Aurox home">
+          <img class="brand-logo" src="images/aurok-mark.png" alt="Aurox logo" />
+        </a>
+
+        <button class="menu-toggle" type="button" aria-label="Open menu" data-menu-toggle>
+          <span></span>
+          <span></span>
+        </button>
+
+        <nav class="site-nav" data-site-nav>
+          <a href="index.html">Home</a>
+          <a href="about.html">About</a>
+          <a href="shop.html">Shop</a>
+          <a href="contact.html">Contact</a>
+          <a href="track-order.html">Track Order</a>
+          <a class="cart-link" href="cart.html" aria-label="Open cart">
+            <svg class="cart-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M7 7h13l-1.5 7.5a2 2 0 0 1-2 1.5H10a2 2 0 0 1-2-1.5L5.6 4.8A1 1 0 0 0 4.6 4H3"
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.7"
+              />
+              <circle cx="10" cy="20" r="1.5" fill="currentColor" />
+              <circle cx="17" cy="20" r="1.5" fill="currentColor" />
+            </svg>
+            <span class="nav-count" data-cart-count>0</span>
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-hero section">
+        <div class="container panel">
+          <p class="eyebrow">Shop Aurox</p>
+          <h1>Premium unisex t-shirts with room to grow.</h1>
+          <p>
+            Start with versatile unisex tees, explore the first drop, and follow
+            the evolution of a brand built to grow into a complete clothing line.
+          </p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container shop-layout">
+          <aside class="panel filter-panel">
+            <div class="filter-group">
+              <label for="search">Search</label>
+              <input id="search" type="search" placeholder="Search products" data-search-input />
+            </div>
+
+            <div class="filter-group">
+              <label for="category">Category</label>
+              <select id="category" data-category-filter>
+                <option value="All">All</option>
+                <option value="Unisex T-Shirts">Unisex T-Shirts</option>
+                <option value="New Drop">New Drop</option>
+                <option value="Essentials">Essentials</option>
+                <option value="Coming Soon">Coming Soon</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label for="size">Size</label>
+              <select id="size" data-size-filter>
+                <option value="All">All</option>
+                <option value="M">M</option>
+                <option value="L">L</option>
+                <option value="XL">XL</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <div class="range-label">
+                <label for="price">Max Price</label>
+                <span data-price-value>500 BDT</span>
+              </div>
+              <input id="price" type="range" min="400" max="500" step="10" value="500" data-price-filter />
+            </div>
+          </aside>
+
+          <div class="shop-results">
+            <div class="panel results-toolbar">
+              <div>
+                <p class="toolbar-title">Curated Products</p>
+                <p class="toolbar-text"><span data-shop-count>0</span> items matched</p>
+              </div>
+              <select data-sort-filter>
+                <option value="newest">Sort by newest</option>
+                <option value="price-low">Price: low to high</option>
+                <option value="price-high">Price: high to low</option>
+                <option value="popularity">Popularity</option>
+              </select>
+            </div>
+
+            <div class="product-grid" data-shop-products></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-row">
+        <div>
+          <h3>Aurox</h3>
+          <p>
+            Premium clothing defined by confidence, identity, elegance, and
+            self-expression.
+          </p>
+        </div>
+        <div class="footer-links">
+          <a href="about.html">About</a>
+          <a href="shop.html">Shop</a>
+          <a href="contact.html">Contact</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="js/data.js"></script>
+    <script src="js/main.js"></script>
+  </body>
+</html>

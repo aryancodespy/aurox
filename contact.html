@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Contact | Aurox</title>
+    <meta
+      name="description"
+      content="Contact Aurox for support, styling questions, collaborations, or store information."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body data-page="contact">
+    <header class="site-header">
+      <div class="container header-row">
+        <a class="brand" href="index.html" aria-label="Aurox home">
+          <img class="brand-logo" src="images/aurok-mark.png" alt="Aurox logo" />
+        </a>
+
+        <button class="menu-toggle" type="button" aria-label="Open menu" data-menu-toggle>
+          <span></span>
+          <span></span>
+        </button>
+
+        <nav class="site-nav" data-site-nav>
+          <a href="index.html">Home</a>
+          <a href="about.html">About</a>
+          <a href="shop.html">Shop</a>
+          <a href="contact.html">Contact</a>
+          <a href="track-order.html">Track Order</a>
+          <a class="cart-link" href="cart.html" aria-label="Open cart">
+            <svg class="cart-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M7 7h13l-1.5 7.5a2 2 0 0 1-2 1.5H10a2 2 0 0 1-2-1.5L5.6 4.8A1 1 0 0 0 4.6 4H3"
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.7"
+              />
+              <circle cx="10" cy="20" r="1.5" fill="currentColor" />
+              <circle cx="17" cy="20" r="1.5" fill="currentColor" />
+            </svg>
+            <span class="nav-count" data-cart-count>0</span>
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-hero section">
+        <div class="container panel">
+          <p class="eyebrow">Contact</p>
+          <h1>Let’s talk about Aurox.</h1>
+          <p>
+            Reach out for styling questions, order support, brand collaborations,
+            or wholesale inquiries.
+          </p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container contact-layout">
+          <form class="panel contact-form">
+            <div class="form-grid">
+              <div>
+                <label for="name">Name</label>
+                <input id="name" type="text" placeholder="Your name" />
+              </div>
+              <div>
+                <label for="email">Email</label>
+                <input id="email" type="email" placeholder="you@example.com" />
+              </div>
+            </div>
+
+            <div>
+              <label for="phone">Phone</label>
+              <input id="phone" type="tel" placeholder="+1 (000) 000-0000" />
+            </div>
+
+            <div>
+              <label for="message">Message</label>
+              <textarea id="message" rows="7" placeholder="Tell us how we can help."></textarea>
+            </div>
+
+            <button class="button button-dark" type="submit">Send Message</button>
+          </form>
+
+          <div class="contact-info">
+            <article class="panel">
+              <p class="eyebrow">Contact Info</p>
+              <h2>A clean line to the brand</h2>
+              <ul class="info-list">
+                <li>Store Email: hello@auroxstudio.com</li>
+                <li>Phone: +1 (212) 555-0188</li>
+                <li>Instagram: @aurox.official</li>
+                <li>Facebook: /aurox.official</li>
+              </ul>
+            </article>
+
+            <article class="panel">
+              <p class="eyebrow">Social Media</p>
+              <p>
+                Follow new arrivals, lookbook drops, and product edits across
+                our brand channels.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-row">
+        <div>
+          <h3>Aurox</h3>
+          <p>
+            Premium clothing defined by confidence, identity, elegance, and
+            self-expression.
+          </p>
+        </div>
+        <div class="footer-links">
+          <a href="about.html">About</a>
+          <a href="shop.html">Shop</a>
+          <a href="contact.html">Contact</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="js/data.js"></script>
+    <script src="js/main.js"></script>
+  </body>
+</html>
